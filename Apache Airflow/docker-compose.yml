@@ -1,0 +1,106 @@
+version: '3.8'
+
+services:
+  # PostgreSQL database for Airflow metadata
+  postgres:
+    image: postgres:13
+    container_name: ml_postgres
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "airflow"]
+      interval: 5s
+      retries: 5
+    restart: always
+
+  # Redis for Celery executor (optional)
+  redis:
+    image: redis:7-alpine
+    container_name: ml_redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 30s
+      retries: 50
+    restart: always
+
+  # Airflow webserver
+  airflow-webserver:
+    build: .
+    container_name: ml_airflow_webserver
+    command: >
+      bash -c "
+        airflow db upgrade &&
+        airflow users create --username admin --firstname ML --lastname Admin --role Admin --email admin@mlproject.com --password admin &&
+        airflow webserver --port 8080
+      "
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      - AIRFLOW__CORE__EXECUTOR=LocalExecutor
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres:5432/airflow
+      - AIRFLOW__CELERY__RESULT_BACKEND=redis://redis:6379/0
+      - AIRFLOW__CELERY__BROKER_URL=redis://redis:6379/0
+      - AIRFLOW__CORE__FERNET_KEY=YourFernetKeyHere123456789012345678901234567890
+      - AIRFLOW__WEBSERVER__SECRET_KEY=YourSecretKeyHere123456789012345678901234567890
+      - AIRFLOW__CORE__LOAD_EXAMPLES=False
+      - AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION=False
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./logs:/opt/airflow/logs
+      - ./plugins:/opt/airflow/plugins
+      - ./Dataset:/opt/airflow/Dataset
+      - airflow_data:/opt/airflow/ml_data
+      - airflow_models:/opt/airflow/ml_models
+    restart: always
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+
+  # Airflow scheduler
+  airflow-scheduler:
+    build: .
+    container_name: ml_airflow_scheduler
+    command: airflow scheduler
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      - AIRFLOW__CORE__EXECUTOR=LocalExecutor
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres:5432/airflow
+      - AIRFLOW__CELERY__RESULT_BACKEND=redis://redis:6379/0
+      - AIRFLOW__CELERY__BROKER_URL=redis://redis:6379/0
+      - AIRFLOW__CORE__FERNET_KEY=YourFernetKeyHere123456789012345678901234567890
+      - AIRFLOW__WEBSERVER__SECRET_KEY=YourSecretKeyHere123456789012345678901234567890
+      - AIRFLOW__CORE__LOAD_EXAMPLES=False
+      - AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION=False
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./logs:/opt/airflow/logs
+      - ./plugins:/opt/airflow/plugins
+      - ./Dataset:/opt/airflow/Dataset
+      - airflow_data:/opt/airflow/ml_data
+      - airflow_models:/opt/airflow/ml_models
+    restart: always
+
+volumes:
+  postgres_data:
+  airflow_data:
+  airflow_models:
