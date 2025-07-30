@@ -1,9 +1,9 @@
-# 🐟 Fish Machine Learning - Setup
+# Machine Learning for 🐟 Fish weight prediction
 
 ### 📁 Project
 ```
 Regression/
-├── 📖 README.md                    # Comprehensive documentation
+├── README.md                    # Comprehensive documentation
 ├── 🚫 .gitignore                   # Git ignore file (excludes venv, __pycache__, etc.)
 ├──  requirements.txt             # Python package dependencies
 ├── Dataset/

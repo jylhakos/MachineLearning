@@ -1,4 +1,4 @@
-# Fish Weight prediction using regression models
+# Fish weight prediction using regression models
 
 This project implements supervised machine learning models to predict fish weight using various physical measurements. The dataset contains information about 7 different fish species with their corresponding physical attributes.
 

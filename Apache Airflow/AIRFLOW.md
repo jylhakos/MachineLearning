@@ -24,7 +24,7 @@
 
 ### Option 2: Docker deployment (Recommended for production)
 
-> **📚 For detailed Docker deployment strategies and business value analysis, see [DOCKER.md](DOCKER.md)**
+> **For detailed Docker deployment strategies and business value analysis, see [DOCKER.md](DOCKER.md)**
 
 1. **Prerequisites**
    ```bash
@@ -225,7 +225,7 @@ airflow tasks clear supervised_learning_pipeline --start-date $(date +%Y-%m-%d)
 - Load balancing
 - Database replication
 
-## 🔄 CI/CD integration
+## CI/CD integration
 
 ### Pipeline testing
 ```bash

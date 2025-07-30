@@ -1,4 +1,4 @@
-# Apache Airflow Fish weight prediction pipeline
+# Apache Airflow for Fish weight prediction pipeline
 
 A supervised learning project with Apache Airflow orchestration for fish weight prediction using regression. This project demonstrates a machine learning pipeline including data preprocessing, feature engineering, model training, hyperparameter tuning, model evaluation, and optional Docker deployment specifically for Fish.csv dataset analysis.
 

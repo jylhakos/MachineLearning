@@ -1,4 +1,4 @@
-# Apache Airflow Fish Weight prediction pipeline
+# Apache Airflow Fish weight prediction pipeline
 
 
 ### 1. **Fish weight prediction pipeline** (`fish_supervised_pipeline.py`)
@@ -105,7 +105,7 @@ python supervised_regression_pipeline.py
 docker-compose up -d
 ```
 
-## 📊 Key Features Implemented
+##  Features
 
 ### Machine Learning components
  **Data Pipeline**: Automated data loading and validation
