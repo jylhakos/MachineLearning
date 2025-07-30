@@ -10,6 +10,178 @@ A large amount of labeled training datasets are provided which provide examples 
 
 Supervised learning tasks can be categorized as classification or regression problems.
 
+## Regression
+
+Regression is a supervised learning technique used to predict continuous numerical values. Unlike classification which predicts discrete categories, regression models estimate relationships between input features and continuous target variables.
+
+**Key Characteristics:**
+- Predicts continuous numerical outputs
+- Evaluates model performance using metrics like Mean Squared Error (MSE), Root Mean Squared Error (RMSE), and R²
+- Applications include price prediction, demand forecasting, and risk assessment
+
+The `Regression/` folder contains implementations of various regression algorithms including:
+- Linear Regression
+- Polynomial Regression  
+- Decision Tree Regression
+- Fish weight prediction models using the Fish.csv dataset
+
+### Linear Regression
+
+Linear Regression models the relationship between features and target as a linear equation:
+
+```
+ŷ = β₀ + β₁x₁ + β₂x₂ + ... + βₙxₙ + ε
+```
+
+Where:
+- ŷ is the predicted value
+- β₀ is the y-intercept (bias term)
+- β₁, β₂, ..., βₙ are coefficients (weights)
+- x₁, x₂, ..., xₙ are input features
+- ε is the error term
+
+The algorithm finds optimal coefficients by minimizing the sum of squared residuals using methods like Ordinary Least Squares (OLS) or gradient descent. Linear regression assumes a linear relationship between features and target, making it interpretable but potentially limited for complex patterns.
+
+### K-Nearest Neighbors (KNN)
+
+K-Nearest Neighbors is a non-parametric algorithm that makes predictions based on the k closest training examples in the feature space.
+
+**Algorithm Steps:**
+1. Calculate distance (typically Euclidean) between the query point and all training points
+2. Select k nearest neighbors
+3. For regression: Return the average of the k neighbors' values
+4. For classification: Return the majority class among k neighbors
+
+**Mathematical Foundation:**
+For regression, the prediction is:
+```
+ŷ = (1/k) * Σ(i=1 to k) y_i
+```
+
+**Key Parameters:**
+- k: Number of neighbors to consider
+- Distance metric: Euclidean, Manhattan, Minkowski, etc.
+- Weighting scheme: Uniform or distance-based weights
+
+KNN is simple and effective but can be computationally expensive for large datasets and sensitive to the curse of dimensionality.
+
+## Model Evaluation and Hyperparameters
+
+Evaluating machine learning models requires understanding various metrics and optimization techniques to ensure robust performance and generalization to unseen data.
+
+### Classification Metrics
+
+**Accuracy:**
+```
+Accuracy = (TP + TN) / (TP + TN + FP + FN)
+```
+Measures the overall correctness of predictions, but can be misleading with imbalanced datasets.
+
+**Precision:**
+```
+Precision = TP / (TP + FP)
+```
+Indicates the accuracy of positive predictions. High precision means fewer false positives.
+
+**Recall (Sensitivity):**
+```
+Recall = TP / (TP + FN)
+```
+Indicates the ability to identify all positive cases. High recall means fewer false negatives.
+
+**F1-Score:**
+```
+F1 = 2 × (Precision × Recall) / (Precision + Recall)
+```
+Harmonic mean of precision and recall, balancing both metrics.
+
+**AUC-ROC:**
+Area under the ROC curve, which visualizes the trade-off between true positive rate and false positive rate. Values range from 0.5 (random) to 1.0 (perfect).
+
+**Confusion Matrix:**
+A table summarizing prediction outcomes, showing true positives (TP), true negatives (TN), false positives (FP), and false negatives (FN).
+
+### Regression Metrics
+
+**Mean Squared Error (MSE):**
+```
+MSE = (1/n) × Σ(yi - ŷi)²
+```
+Average of the squared differences between predicted and actual values.
+
+**Root Mean Squared Error (RMSE):**
+```
+RMSE = √MSE
+```
+Square root of MSE, giving errors in the same units as the target variable.
+
+**R-squared (R²):**
+```
+R² = 1 - (SS_res / SS_tot)
+```
+Indicates the proportion of variance in the dependent variable explained by the model. Values range from 0 to 1.
+
+**Mean Absolute Error (MAE):**
+```
+MAE = (1/n) × Σ|yi - ŷi|
+```
+Average of absolute differences, less sensitive to outliers than MSE.
+
+### Hyperparameters and Model Optimization
+
+**Hyperparameters** are configuration settings that control the learning process and model behavior, distinct from parameters learned during training.
+
+**Common Hyperparameters:**
+- Learning rate (α): Controls step size in gradient descent
+- Regularization strength (λ): Prevents overfitting
+- Number of estimators: In ensemble methods
+- Maximum depth: In tree-based models
+- Batch size: For neural networks and gradient methods
+
+**Hyperparameter Tuning Methods:**
+1. **Grid Search:** Exhaustive search over parameter combinations
+2. **Random Search:** Random sampling from parameter distributions
+3. **Bayesian Optimization:** Uses probabilistic models to guide search
+4. **Genetic Algorithms:** Evolutionary approach to optimization
+
+### Cross-Validation and Model Selection
+
+**Cross-Validation:**
+A technique to evaluate how well a model generalizes to unseen data by partitioning the dataset into multiple folds.
+
+**K-Fold Cross-Validation:**
+```
+CV_score = (1/k) × Σ(i=1 to k) score_i
+```
+
+**Common CV Strategies:**
+- **K-Fold:** Dataset split into k equal parts
+- **Stratified K-Fold:** Maintains class distribution in each fold
+- **Time Series Split:** Respects temporal order for time-dependent data
+- **Leave-One-Out (LOO):** Each sample serves as validation set
+
+### Apache Airflow and Iterative Model Evaluation
+
+Apache Airflow orchestrates automated model evaluation workflows that iterate through different hyperparameter combinations and track performance metrics:
+
+**Automated Hyperparameter Optimization:**
+- Airflow DAGs can execute grid search or random search tasks
+- Each task evaluates different parameter combinations
+- Results are logged and compared automatically
+
+**Metric Tracking and Comparison:**
+- Airflow integrates with MLflow or similar tools to track experiments
+- Automated comparison of accuracy, precision, recall, F1-score across runs
+- Performance trends monitored over time for model drift detection
+
+**Pipeline Benefits:**
+- **Reproducibility:** Consistent evaluation protocols across experiments
+- **Scalability:** Parallel execution of hyperparameter combinations
+- **Monitoring:** Real-time tracking of training progress and convergence
+- **Automated Selection:** Programmatic selection of best-performing models
+
+The `Apache Airflow/` implementation includes `monitor_pipeline.py` which demonstrates automated evaluation and model selection based on predefined performance thresholds and validation metrics.
+
 ## Ensemble learning
 
 Ensemble learning algorithms combine multiple machine learning algorithms to obtain a better model.
@@ -24,19 +196,28 @@ Decision trees can be used for classification to predict a category, or regressi
 
 ## Gradient Boosting
 
-The term Gradient Boosting comes from the idea of boosting or improving a single weak model by combining it with a number of other weak models in order to generate a collectively strong model.
+Gradient Boosting is an ensemble method that builds models sequentially, where each new model corrects errors made by previous models. The algorithm minimizes a loss function L(y, F(x)) by iteratively adding weak learners in the direction of the negative gradient.
 
-Gradient Boosting is a functional gradient algorithm that repeatedly selects a function that leads in the direction of a weak hypothesis so that it can minimize a loss function. 
+**Mathematical Framework:**
 
-Gradient Boosting can be used for classification and regression problems.
+The algorithm starts with an initial prediction F₀(x) and iteratively improves it:
 
-Gradient Boosting classifier combines several weak learning models to produce a predicting model.
+```
+F_m(x) = F_{m-1}(x) + γ_m * h_m(x)
+```
 
-Gradient Boosting approach trains learners based upon minimising the loss function of a learner.
+Where:
+- F_m(x) is the model after m iterations
+- h_m(x) is the m-th weak learner
+- γ_m is the step size (learning rate)
 
-The learners have equal weights in the Gradient Boosting. 
+The weak learner h_m(x) is fitted to the negative gradient (pseudo-residuals):
 
-Early stopping support in Gradient Boosting enables us to find the least number of iterations which is sufficient to build a model that generalizes well to unseen data.
+```
+r_{im} = -[∂L(y_i, F(x_i))/∂F(x_i)]_{F=F_{m-1}}
+```
+
+This approach effectively performs functional gradient descent in the space of functions, making it applicable to both classification and regression tasks. Early stopping mechanisms prevent overfitting by monitoring validation performance and halting training when improvement plateaus.
 
 ###  Classification
 
@@ -58,4 +239,112 @@ This is how the trees are added incrementally, iteratively, and sequentially.
 
 Extreme Gradient Boosting (XGBoost) is implementation of gradient boosting.
 
-With XGBoost, trees are built in parallel, instead of sequentially like Gradient Boosted Decision Trees (GBDT). 
+With XGBoost, trees are built in parallel, instead of sequentially like Gradient Boosted Decision Trees (GBDT).
+
+## Apache Airflow for Machine Learning Pipelines
+
+Apache Airflow is an open-source platform designed to programmatically author, schedule, and monitor workflows. In machine learning contexts, it orchestrates complex data pipelines that handle the entire ML lifecycle from data ingestion to model deployment.
+
+### Key Features for ML Workflows
+
+**Directed Acyclic Graphs (DAGs):**
+- Define workflow dependencies as Python code
+- Ensure proper execution order of ML pipeline stages
+- Enable parallel processing where dependencies allow
+
+**Task Management:**
+- Data extraction and preprocessing
+- Feature engineering and transformation
+- Model training and validation
+- Model evaluation and comparison
+- Model deployment and monitoring
+
+**Scheduling and Monitoring:**
+- Automated pipeline execution on time-based or event-based triggers
+- Built-in retry mechanisms for failed tasks
+- Comprehensive logging and alerting systems
+- Web-based UI for monitoring pipeline status
+
+### Machine Learning Pipeline Architecture
+
+The `Apache Airflow/` folder contains a complete ML pipeline implementation:
+
+1. **Data Pipeline Components:**
+   - `fish_analysis.py`: Core data analysis and preprocessing
+   - `fish_classification.py`: Classification model implementations
+   - `fish_regression.py`: Regression model implementations
+   - `verify_dataset.py`: Data quality validation
+
+2. **API and Deployment:**
+   - `fish_api.py`: REST API for model serving
+   - `Dockerfile.fish-api`: Containerized API deployment
+   - `deploy-fish-production.sh`: Production deployment scripts
+
+3. **Pipeline Orchestration:**
+   - `dags/ml_pipeline_dag.py`: Main Airflow DAG definition
+   - `supervised_regression_pipeline.py`: End-to-end supervised learning pipeline
+   - `monitor_pipeline.py`: Pipeline monitoring and alerting
+
+### Workflow Benefits
+
+- **Reproducibility:** Version-controlled pipeline definitions ensure consistent execution
+- **Scalability:** Distributed execution across multiple workers
+- **Fault Tolerance:** Automatic retries and error handling
+- **Monitoring:** Real-time visibility into pipeline health and performance
+- **Integration:** Seamless connection with databases, cloud services, and ML frameworks
+
+The implementation demonstrates how Airflow transforms ad-hoc ML experiments into production-ready, automated workflows that can handle data drift, model retraining, and continuous deployment scenarios.
+
+## Amazon SageMaker
+
+Deploying a Python script for linear regression to Amazon AWS, within a machine learning pipeline, involves Amazon SageMaker.
+
+Prepare your Python script
+
+Ensure your linear regression script is working, using a main guard clause for modularity and testability.
+
+Handle input/output paths for data and model artifacts, often utilizing Amazon S3 for storage.
+
+Include Python libraries and dependencies within your script or specify them for the deployment environment.
+
+Containerize your application (Recommended)
+
+Create a Docker image containing your Python script, its dependencies, and the necessary environment for execution. This ensures consistency and portability.
+
+Push this Docker image to Amazon Elastic Container Registry (ECR).
+
+Utilize Amazon SageMaker for Training and deployment
+
+Training
+
+SageMaker training
+
+Use the SageMaker Python SDK to define a training job that points to your Docker image in ECR and your training data in S3.
+
+SageMaker will launch an instance, pull your image, and execute your script to train the linear regression model.
+
+SageMaker pipelines
+
+For complex workflows, define a SageMaker Pipeline to automate the entire ML process, including data preprocessing, training, model evaluation, and deployment.
+
+Your linear regression script would be a component within this pipeline.
+
+Deployment
+
+SageMaker Endpoints
+
+After training the model, deploy your trained model to a SageMaker Endpoint.
+
+This creates a real-time inference service that can be invoked to get predictions from your linear regression model.
+
+You'll need an inference script that loads the trained model and processes incoming requests.
+
+Batch Transform
+
+For batch predictions on large datasets, use SageMaker Batch Transform, which processes data in batches and stores the predictions in S3.
+
+### References
+
+[Classification: Accuracy, recall, precision, and related metrics](https://developers.google.com/machine-learning/crash-course/classification/accuracy-precision-recall)
+
+[Linear regression](https://developers.google.com/machine-learning/crash-course/linear-regression)
