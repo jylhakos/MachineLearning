@@ -297,54 +297,88 @@ The implementation demonstrates how Airflow transforms ad-hoc ML experiments int
 
 ## Amazon SageMaker
 
-Deploying a Python script for linear regression to Amazon AWS, within a machine learning pipeline, involves Amazon SageMaker.
+Amazon SageMaker (AI) is a machine learning (ML) service designed to help developers build, train, and deploy ML models into production ready hosted environments.
 
-Prepare your Python script
+### Properties
 
-Ensure your linear regression script is working, using a main guard clause for modularity and testability.
+**Managed infrastructure**
+- Eliminates the need to build and manage your own servers
+- Provides scalable compute resources for training and inference
+- Handles infrastructure provisioning and scaling automatically
 
-Handle input/output paths for data and model artifacts, often utilizing Amazon S3 for storage.
+**Integrated Development Environment**
+- UI experience for running ML workflows
+- Support for multiple IDEs and development environments
+- Collaborative tools for data scientists and developers
 
-Include Python libraries and dependencies within your script or specify them for the deployment environment.
+**Data management**
+- Store and share data without server management overhead
+- Integration with Amazon S3 for data lakes and storage
+- Built-in data processing and transformation capabilities
 
-Containerize your application (Recommended)
+### Machine Learning workflow
 
-Create a Docker image containing your Python script, its dependencies, and the necessary environment for execution. This ensures consistency and portability.
+**1. Data preparation and storage**
+- Utilize Amazon S3 for scalable data storage
+- Built-in data processing tools for cleaning and transformation
+- Integration with other AWS data services
 
-Push this Docker image to Amazon Elastic Container Registry (ECR).
+**2. Model development and training**
+- **Built-in Algorithms:** Pre-built, optimized ML algorithms for common use cases
+- **Bring-Your-Own-Algorithms:** Support for custom algorithms and frameworks
+- **Distributed Training:** Flexible training options that scale with your data
+- **Managed Training Jobs:** Automated infrastructure management during training
 
-Utilize Amazon SageMaker for Training and deployment
+**3. Model deployment options**
 
-Training
+**Real-time inference**
+- **Amazon SageMaker Endpoints:** Deploy models for real-time predictions
+- Auto-scaling capabilities based on traffic
+- A/B testing support for model variants
 
-SageMaker training
+**Batch processing**
+- **Batch transform jobs:** Process large datasets in batches
+- Cost-effective for bulk predictions
+- Results stored directly in S3
 
-Use the SageMaker Python SDK to define a training job that points to your Docker image in ECR and your training data in S3.
+**4. MLOps and pipeline**
+- **Amazon SageMaker pipelines:** Automate end-to-end ML workflows
+- **Model registry:** Version control and lifecycle management
+- **Model monitoring:** Detect data drift and model performance degradation
+- **Feature store:** Centralized repository for ML features
 
-SageMaker will launch an instance, pull your image, and execute your script to train the linear regression model.
+### Integration with Development Workflows
 
-SageMaker pipelines
+**Containerization**
+- Native Docker container support
+- Integration with Amazon Elastic Container Registry (ECR)
+- Custom runtime environments for specific frameworks
 
-For complex workflows, define a SageMaker Pipeline to automate the entire ML process, including data preprocessing, training, model evaluation, and deployment.
+**SDK and API access**
+- Python SDK for programmatic access
+- REST APIs for integration with existing systems
+- CLI tools for automation and scripting
 
-Your linear regression script would be a component within this pipeline.
+**Security**
+- IAM integration for access control
+- VPC support for network isolation
+- Encryption at rest and in transit
+- Compliance with industry standards
 
-Deployment
+### ML for Development
 
-SageMaker Endpoints
+- **Faster time-to-market:** Reduced infrastructure overhead enables focus on model development
+- **Scalability:** Automatic scaling from experimentation to production workloads
+- **Cost Optimization:** Pay-per-use pricing model with no upfront costs
+- **Collaboration:** Shared environments and tools for team-based development
+- **Production-Ready:** Built-in best practices for ML operations and deployment
 
-After training the model, deploy your trained model to a SageMaker Endpoint.
-
-This creates a real-time inference service that can be invoked to get predictions from your linear regression model.
-
-You'll need an inference script that loads the trained model and processes incoming requests.
-
-Batch Transform
-
-For batch predictions on large datasets, use SageMaker Batch Transform, which processes data in batches and stores the predictions in S3.
+Amazon SageMaker transforms the traditional ML development process by providing a comprehensive platform that handles the complexities of infrastructure management while maintaining flexibility for custom workflows and algorithms.
 
 ### References
 
 [Classification: Accuracy, recall, precision, and related metrics](https://developers.google.com/machine-learning/crash-course/classification/accuracy-precision-recall)
 
 [Linear regression](https://developers.google.com/machine-learning/crash-course/linear-regression)
+
+[What is Amazon SageMaker AI?](https://docs.aws.amazon.com/sagemaker/latest/dg/whatis.html)

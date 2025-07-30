@@ -1,14 +1,16 @@
 # Fish weight prediction - Machine Learning pipeline
 
-A machine learning pipeline for predicting fish weight based on species and physical measurements, deployable to AWS SageMaker with Docker containerization and FastAPI inference server.
+A machine learning pipeline for predicting fish weight based on species and physical measurements, deployable to Amazon SageMaker with Docker containerization and FastAPI inference server.
 
 ## Project
+
+**🐟 Fish ML** - Predicting fish weight with machine learning 
 
 This project implements supervised learning regression models to predict fish weight using features like species, length measurements, height, and width.
 
 - **Local development**: Python scripts for data analysis and model training
 - **Containerization**: Docker setup for consistent deployment
-- **Cloud deployment**: AWS SageMaker integration for scalable ML operations
+- **Cloud deployment**: Amazon SageMaker integration for scalable ML operations
 - **API service**: FastAPI server for real-time predictions
 - **MLOps Pipeline**: Complete CI/CD workflow for production deployment
 
@@ -33,7 +35,7 @@ The `Fish.csv` dataset contains measurements for different fish species:
 ├── train.py                    # SageMaker training script
 ├── inference_server.py         # FastAPI inference server
 ├── local_dev.py               # Local development tools
-├── deploy_sagemaker.py        # AWS SageMaker deployment
+├── deploy_sagemaker.py        # Amazon SageMaker deployment
 ├── aws_setup.py               # AWS infrastructure setup
 ├── Dockerfile                 # Container configuration
 ├── docker-entrypoint.sh       # Container entry point
@@ -109,7 +111,7 @@ docker run -v $(pwd)/Dataset:/opt/ml/input/data/training fish-ml train
 docker run -p 8000:8000 -v $(pwd)/model:/opt/ml/model fish-ml
 ```
 
-## ☁️ AWS SageMaker deployment
+## ☁️ Amazon SageMaker deployment
 
 ### Prerequisites
 
@@ -121,7 +123,7 @@ aws configure
 
 2. **Docker**: Check Docker is installed and running
 
-3. **AWS permissions**: IAM user/role with SageMaker, S3, and ECR permissions
+3. **Amazon AWS permissions**: IAM user/role with SageMaker, S3, and ECR permissions
 
 ### Automatic deployment
 
@@ -137,7 +139,7 @@ python deploy_sagemaker.py
 
 To upload the Fish.csv dataset to Amazon AWS S3 storage:
 
-1. **First, configure AWS credentials:**
+1. **First, configure Amazon AWS credentials:**
 
 ```bash
 # Option 1: Using AWS CLI
@@ -150,10 +152,10 @@ export AWS_SECRET_ACCESS_KEY="your-secret-key"
 export AWS_DEFAULT_REGION="us-east-1"
 ```
 
-2. **Then run the AWS setup script:**
+2. **Then run the Amazon AWS setup script:**
 
 ```bash
-cd "/home/laptop/EXERCISES/MACHINE LEARNING/MachineLearning/Amazon SageMaker"
+cd "Amazon SageMaker"
 source venv/bin/activate
 python aws_setup.py
 ```
@@ -356,7 +358,7 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ## References
 
-- [AWS SageMaker Documentation](https://docs.aws.amazon.com/sagemaker/)
+- [Amazon SageMaker Documentation](https://docs.aws.amazon.com/sagemaker/)
 - [FastAPI Documentation](https://fastapi.tiangolo.com/)
 - [Docker Documentation](https://docs.docker.com/)
 - [Scikit-learn Documentation](https://scikit-learn.org/)
@@ -364,6 +366,3 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 - [Build and deploy ML inference applications from scratch using Amazon SageMaker](https://aws.amazon.com/blogs/machine-learning/build-and-deploy-ml-inference-applications-from-scratch-using-amazon-sagemaker)
 
 ---
-
-**Fish ML Project** - Predicting fish weight with machine learning 🐟
-

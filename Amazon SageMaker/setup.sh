@@ -5,7 +5,7 @@
 # This script sets up the complete Python environment for the Fish ML project
 # including all dependencies for local development and AWS deployment.
 
-echo "🐟 Fish Machine Learning Project Setup"
+echo "🐟 Fish Machine Learning setup"
 echo "======================================"
 
 # Check if we're in the right directory
@@ -15,11 +15,11 @@ if [ ! -f "Dataset/Fish.csv" ]; then
     exit 1
 fi
 
-echo "✅ Dataset found: Dataset/Fish.csv"
+echo "Dataset found: Dataset/Fish.csv"
 
 # Check Python version
 echo ""
-echo "🐍 Checking Python version..."
+echo "Checking Python version..."
 python3 --version
 
 if [ $? -ne 0 ]; then
@@ -30,7 +30,7 @@ fi
 
 # Create virtual environment
 echo ""
-echo "📦 Creating Python virtual environment..."
+echo "Creating Python virtual environment..."
 if [ -d "venv" ]; then
     echo "   Virtual environment already exists, removing old one..."
     rm -rf venv
@@ -39,7 +39,7 @@ fi
 python3 -m venv venv
 
 if [ $? -eq 0 ]; then
-    echo "✅ Virtual environment created successfully"
+    echo "Python Virtual Environment created."
 else
     echo "❌ Failed to create virtual environment"
     echo "Please ensure Python 3 venv module is available"
@@ -48,12 +48,12 @@ fi
 
 # Activate virtual environment
 echo ""
-echo "🔄 Activating virtual environment..."
+echo "Activating virtual environment..."
 source venv/bin/activate
 
 # Upgrade pip
 echo ""
-echo "⬆️  Upgrading pip..."
+echo "Upgrading pip..."
 pip install --upgrade pip
 
 # Install required packages
@@ -69,7 +69,7 @@ pip install scikit-learn pandas numpy matplotlib seaborn jupyter joblib scipy pl
 echo "   Installing AWS packages..."
 pip install boto3 sagemaker awscli
 
-# Install FastAPI and web service packages  
+# Install FastAPI and web service packages
 echo "   Installing API framework..."
 pip install fastapi "uvicorn[standard]" pydantic
 
@@ -78,7 +78,7 @@ echo "   Installing from requirements.txt..."
 pip install -r requirements.txt
 
 if [ $? -eq 0 ]; then
-    echo "✅ All packages installed successfully"
+    echo "Packages installed successfully"
 else
     echo "❌ Failed to install some packages"
     echo "You may need to install them manually"
@@ -86,7 +86,7 @@ fi
 
 # Verify installation
 echo ""
-echo "🔍 Verifying installation..."
+echo "Verifying installation..."
 python3 -c "
 try:
     import pandas as pd
@@ -97,17 +97,17 @@ try:
     import fastapi
     import uvicorn
     import joblib
-    print('✅ Core ML packages: OK')
+    print(' Core ML packages: OK')
     
     try:
         import boto3
         import sagemaker
-        print('✅ AWS packages: OK')
+        print('Amazon AWS packages: OK')
     except ImportError as e:
         print(f'⚠️  AWS packages: {e}')
         print('   (AWS packages are optional for local development)')
     
-    print('✅ All essential packages verified!')
+    print('Essential packages verified.')
     
 except ImportError as e:
     print(f'❌ Package verification failed: {e}')
@@ -136,19 +136,19 @@ chmod +x docker-entrypoint.sh
 
 # Display next steps
 echo ""
-echo "🎉 Setup completed successfully!"
+echo " Setup completed successfully!"
 echo "========================================="
 echo ""
-echo "📋 What's available:"
-echo "   📊 fish_analysis.py      - Comprehensive data analysis"
-echo "   🏋️  fish_regression.py    - Basic regression model"
-echo "   🤖 train.py             - SageMaker training script"
-echo "   🚀 inference_server.py   - FastAPI inference server"
+echo " What's available:"
+echo "    fish_analysis.py      - Comprehensive data analysis"
+echo "    fish_regression.py    - Basic regression model"
+echo "    train.py             - SageMaker training script"
+echo "    inference_server.py   - FastAPI inference server"
 echo "   🛠️  local_dev.py         - Interactive development tool"
 echo "   ☁️  deploy_sagemaker.py  - AWS deployment script"
 echo "   🔧 aws_setup.py         - AWS infrastructure setup"
 echo ""
-echo "🚀 Quick start options:"
+echo " Start options:"
 echo ""
 echo "   1. Run interactive development tool:"
 echo "      python local_dev.py"
@@ -170,12 +170,12 @@ echo "   5. Setup AWS (for cloud deployment):"
 echo "      source venv/bin/activate"
 echo "      python aws_setup.py"
 echo ""
-echo "📖 See README.md for detailed documentation"
+echo "   Read README.md for detailed documentation"
 echo ""
 echo "🐟 Happy fish weight predicting!"
 
 echo ""
-echo "🎯 Setup complete! Here's what you can do next:"
+echo "  Setup complete! Here's what you can do next:"
 echo ""
 echo "1. Run regression analysis:"
 echo "   python fish_regression.py"
@@ -189,7 +189,6 @@ echo ""
 echo "4. Start Jupyter notebook for interactive analysis:"
 echo "   jupyter notebook"
 echo ""
-echo "📝 Don't forget to activate your virtual environment each time:"
+echo "   Don't forget to activate your virtual environment each time:"
 echo "   source venv/bin/activate"
 echo ""
-echo "🎉 Happy fish machine learning!"
