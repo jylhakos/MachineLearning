@@ -61,13 +61,20 @@ data/
 # JSON data files (keep config JSON but exclude data JSON)
 data/*.json
 
-# Output files
-outputs/
-*.png
+# Output files – exclude data outputs but track chart images for README display
+outputs/*.csv
+outputs/*.json
+outputs/*.pkl
+outputs/*.joblib
+outputs/*.txt
 *.jpg
 *.jpeg
 *.pdf
 *.svg
+
+# Allow output chart PNG images so they display on GitHub
+!outputs/
+!outputs/*.png
 
 # Log files
 *.log
