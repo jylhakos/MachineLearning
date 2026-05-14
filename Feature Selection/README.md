@@ -6,6 +6,7 @@
 2. [Using Google Search to Investigate Unknown Datasets](#using-google-search-to-investigate-unknown-datasets)
    - [How to Use the Google Search Box](#how-to-use-the-google-search-box)
    - [Example Google Search Queries](#example-google-search-queries)
+   - [Sample Query: Identifying Relevant Columns for COL_134](#sample-query-identifying-relevant-columns-for-col_134)
    - [Steps to Use Google Search Together with VS Code](#steps-to-use-google-search-together-with-vs-code)
 3. [Vibe Coding with VS Code and AI Agents](#vibe-coding-with-vs-code-and-ai-agents)
    - [What is Vibe Coding](#what-is-vibe-coding)
@@ -209,6 +210,49 @@ predictive maintenance continuous variable regression scikit-learn
 industrial sensor dataset feature selection python
 mechanical component property regression prediction python
 ```
+
+### Sample Query: Identifying Relevant Columns for COL_134
+
+The query below is an example of how to start a Google Search or AI chat agent session when the goal is to find which columns in an unknown dataset are statistically relevant to a continuous target variable.
+
+**Search query typed into Google or an AI chat agent:**
+
+```
+How to identify which columns in a dataset are statistically relevant to a continuous target column called COL_134?
+```
+
+**Google AI Mode result for this query:**
+
+![Google AI Mode search result for the COL_134 relevance query](outputs/screenshot.png)
+
+**Extracted response text from the search result:**
+
+To identify columns statistically relevant to a continuous target, `COL_134`, use correlation analysis (Pearson/Spearman) for linear relationships, tree-based feature importance (Random Forest/XGBoost) for non-linear, or statistical tests like ANOVA. Prioritize methods based on data type and relationship, scaling inputs to avoid bias.
+
+**Key Techniques to Identify Relevant Columns**
+
+**Correlation Matrix (Numerical to Continuous):**
+
+- **Pearson Correlation:** Measures linear relationships. Use `.corr()` in Pandas.
+- **Spearman Rank Correlation:** Detects monotonic (non-linear) relationships.
+- *Action:* Calculate `df.corr()['COL_134'].sort_values(ascending=False)` to rank features by relevance. Look for absolute values closer to 1.
+
+**Tree-Based Feature Importance (Best for Non-Linear):**
+
+- Train a `RandomForestRegressor` or XGBoost model using all columns except `COL_134` as features.
+- Use the model's `feature_importances_` attribute to rank the influence of each column on `COL_134`.
+
+**Statistical Tests (Categorical to Continuous):**
+
+- Use ANOVA (Analysis of Variance) to test if different categories in a categorical column yield different means for `COL_134`.
+
+**Workflow for Selection**
+
+1. **Clean Data:** Remove or handle missing values and scale numerical data using `RobustScaler` if outliers are present.
+2. **Run Correlation:** Quickly identify linear drivers.
+3. **Calculate Feature Importance:** Identify complex, non-linear drivers.
+4. **Visualize:** Create scatter plots or pairplots to confirm relationships for top-ranked features.
+5. **Remove Multicollinearity:** Ensure selected features are not highly correlated with each other using a correlation matrix to keep only independent predictors.
 
 ### Steps to Use Google Search Together with VS Code
 
@@ -559,6 +603,7 @@ Feature Selection/
   ▪ feature_importance.png         Random Forest feature importance bar chart
   |                                (green = selected, grey = below mean threshold)
   ▪ col134_results_plot.png        Four-panel pipeline result summary plot
+  ▪ screenshot.png                 Google AI Mode search result screenshot
 ```
 
 ---
