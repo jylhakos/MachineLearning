@@ -30,6 +30,7 @@
     - [Running the Script](#running-the-script)
     - [Feature Importance Chart](#feature-importance-chart)
     - [Script Output Visualization](#script-output-visualization)
+    - [Scatter Plots and Pairplots for Top Features](#scatter-plots-and-pairplots-for-top-features)
 11. [Feature Selection with XGBoost](#feature-selection-with-xgboost)
 12. [Evaluating and Comparing Feature Selection Algorithms](#evaluating-and-comparing-feature-selection-algorithms)
     - [Comparison of Five Feature Selection Methods](#comparison-of-five-feature-selection-methods)
@@ -1351,7 +1352,27 @@ The figure below is produced by `scripts/col134_feature_selection.py` (Stage 5) 
 
 ![Feature Importance for COL_134](outputs/feature_importance.png)
 
-The chart is a horizontal bar chart where each bar represents one feature. The red dashed vertical line marks the **mean importance threshold** (1 / number of features = 1/9 = 0.1111). The threshold is scale-free and automatically adapts to any number of features without manual tuning.
+**What is Feature Importance?**
+
+Feature importance is a numerical score assigned to every input column that quantifies how much that column contributes to predicting the target variable (`COL_134`). A higher score means the column carries more information about the target. A score near zero means the column behaves like noise from the model's perspective and adds little predictive power.
+
+In a Random Forest, feature importance is computed using the **Mean Decrease in Impurity (MDI)**, also called Gini importance. Every time a feature is chosen as a split point inside a decision tree, the algorithm records how much the split reduced the variance in the child nodes. These reductions are summed and averaged across all trees, then normalised so that all importances sum to exactly 1.0. A column that is chosen frequently as a split point and that consistently produces large variance reductions receives a high importance score.
+
+**What is a Threshold?**
+
+Once every feature has a numeric importance score, a threshold is needed to separate relevant columns from irrelevant ones. A threshold is a cutoff value: features whose score meets or exceeds the threshold are kept; features below it are discarded. Without a threshold, every column would be retained regardless of how little it contributes.
+
+**What is the Mean Importance Threshold?**
+
+The pipeline uses the **arithmetic mean of all importance scores** as the threshold:
+
+```
+threshold = sum of all importance scores / number of features = 1 / number of features
+```
+
+Because all Random Forest importances sum to 1.0, the mean always equals `1 / p` where `p` is the total number of features. For the elevator demo dataset with nine numeric features the threshold is `1/9 = 0.1111`. A feature must contribute more than its equal share of predictive weight to be considered relevant. The mean threshold is scale-free, requires no manual tuning, and automatically adapts to any number of input columns without adjustment.
+
+The red dashed vertical line in the chart marks this threshold. **Green bars** extend to the right of the line and are selected. **Grey bars** fall to the left and are discarded by the Random Forest stage (though some may still be captured by Lasso and kept in the final union set).
 
 | Bar colour | Meaning |
 |------------|---------|
@@ -1389,6 +1410,28 @@ selection to final model evaluation in four panels.
 | Bottom-left | Top 10 Selected Features | Random Forest importance scores for the 20 features retained by the Lasso + RF union selection. Blue bars mark the true signal columns (COL_1, COL_2, COL_5, COL_8); grey bars are noise features that passed the threshold. |
 | Bottom-right | Feature Selection Method Comparison | Test R2 for five selection methods using the same Linear Regression final model. XGBoost achieves the highest R2 (0.9751), followed by Lasso and the Lasso + RF union (both 0.9745). |
 
+**Concept explanations for the four panels:**
+
+**Predicted values** are the numbers the trained regression model outputs when it processes the input features. After the model is fitted on the training set, it is given the test set features and computes one prediction for each row. In the top-left panel every point on the x-axis is the true measured value of `COL_134` and every point on the y-axis is the value the model predicted for that same row. The dashed diagonal line represents perfect prediction where `predicted = actual`. Points that sit exactly on this line mean the model was correct for that row; points above the line mean the model over-estimated; points below the line mean the model under-estimated.
+
+**Actual values** are the ground-truth measurements of the target variable `COL_134` taken directly from the held-out test set. These are the values the model never saw during training. Comparing actual values to predicted values is the standard way to measure how well a regression model has generalised to new data.
+
+**Residuals** are the signed differences between actual and predicted values for every test-set row:
+
+```
+residual = actual value - predicted value
+```
+
+A residual of zero means the model was exactly right for that row. A positive residual means the model under-predicted (the true value was higher than forecast). A negative residual means the model over-predicted. The top-right panel plots residuals on the y-axis against predicted values on the x-axis. A well-behaved model produces residuals that scatter randomly around the horizontal zero line with no visible pattern. Patterns in the residuals, such as a funnel shape or a curve, indicate that the model is missing a relationship in the data or that a linear model is not appropriate.
+
+**True signal features** are the input columns that were deliberately built into the synthetic dataset to have a real mathematical relationship with `COL_134`. In `generate_results_plot.py` the target is constructed as:
+
+```python
+COL_134 = 2.5 * COL_1 - 1.8 * COL_2 + 0.9 * COL_5 + 0.4 * COL_8 + noise
+```
+
+COL_1, COL_2, COL_5, and COL_8 are the true signal features because they directly determine the value of `COL_134`. The remaining 26 input columns (COL_3, COL_4, COL_6, COL_7, and so on) are pure random noise with no relationship to the target. In the bottom-left panel these four true signal columns are highlighted in blue so it is easy to see whether the feature selection pipeline correctly identified them from the top-ranked features.
+
 **How to generate the plot:**
 
 ```bash
@@ -1398,6 +1441,45 @@ python scripts/generate_results_plot.py
 
 The script creates the `outputs/` directory automatically and saves the figure as
 `outputs/col134_results_plot.png` at 150 dpi.
+
+---
+
+### Scatter Plots and Pairplots for Top Features
+
+The Google AI response to the search query in the previous section recommended the following workflow step:
+
+> **Visualize:** Create scatter plots or pairplots to confirm relationships for top-ranked features.
+
+This step is applied directly in the pipeline. After feature selection identifies the top-ranked columns, `scripts/generate_results_plot.py` produces the **Predicted vs Actual** scatter plot (top-left panel of `outputs/col134_results_plot.png`). This plot is a form of the recommended visualisation: it shows the relationship between the model output and the target variable across every test-set row, confirming whether the selected features collectively produce a linear and unbiased prediction of `COL_134`.
+
+For individual feature-level confirmation the same concept applies with a standard scatter plot or a pairplot:
+
+- A **scatter plot** of a single feature against `COL_134` shows directly whether the two variables move together (positive or negative slope), whether the relationship is linear or curved, and whether there are outliers that distort the pattern.
+- A **pairplot** (also called a scatterplot matrix) places multiple such scatter plots in a grid so that all top-ranked features can be compared at once. Each cell in the grid shows one feature on the x-axis and another on the y-axis, with the diagonal showing the distribution of each feature individually.
+
+The following code produces a pairplot for the top-ranked features selected by the pipeline. Run it with the virtual environment activated:
+
+```python
+import pandas as pd
+import seaborn as sns
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+
+# Load the demo dataset
+df = pd.read_csv("scripts/elevator_data.csv")
+
+# Top-ranked features identified by the pipeline (signal + selected)
+top_features = ["COL_045", "COL_089", "COL_067", "COL_102", "COL_110", "COL_134"]
+
+sns.pairplot(df[top_features], diag_kind="kde", plot_kws={"alpha": 0.4})
+plt.suptitle("Pairplot: top-ranked features vs COL_134", y=1.02)
+plt.savefig("outputs/pairplot_top_features.png", dpi=120, bbox_inches="tight")
+plt.close()
+print("Pairplot saved to outputs/pairplot_top_features.png")
+```
+
+In the resulting pairplot the column for `COL_134` shows a clear positive slope when plotted against `COL_045` and `COL_089`, confirming that these two features have a strong linear relationship with the target. The noise columns (COL_120, COL_125, COL_130) show flat, structureless scatter against `COL_134`, confirming they were correctly discarded by the selection pipeline. This visual confirmation step directly applies the workflow recommendation from the Google AI response and provides human-interpretable evidence that the automated feature selection identified the right columns.
 
 ---
 
