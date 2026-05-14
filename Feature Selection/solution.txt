@@ -1,0 +1,1217 @@
+================================================================================
+Feature Selection and Regression Modelling for a Continuous Target Column
+(Elevator Component Property – COL_134)
+================================================================================
+
+OVERVIEW
+--------
+This solution identifies which columns in a CSV dataset are statistically
+relevant to a continuous target column called COL_134, and builds a predictive
+regression model for it.  The workflow is fully automated: it detects column
+data-types, pre-processes mixed data, selects important features, and outputs
+a model with performance metrics.
+
+
+--------------------------------------------------------------------------------
+1. PROBLEM STATEMENT
+--------------------------------------------------------------------------------
+  • Dataset    : A CSV file with an unknown number of columns.
+  • Target     : COL_134  – a continuous measurement of an elevator component
+                 (e.g. vibration amplitude, motor current, wear index).
+  • Goal       : Find which other columns (features) are relevant to COL_134
+                 and build a regression function:
+
+                   COL_134 = f(x₁, x₂, …, xₙ) + ε
+
+  • Challenge  : Column count and data-types are unknown in advance.
+
+
+--------------------------------------------------------------------------------
+2. ALGORITHM DESIGN
+--------------------------------------------------------------------------------
+The pipeline has five sequential stages:
+
+  Stage 1 – DATA LOADING & TYPE DETECTION
+  ─────────────────────────────────────────
+  Load the CSV with Pandas and inspect every column:
+    • numeric_continuous  (float / large-range int)
+    • numeric_discrete    (int with ≤15 unique values, e.g. category codes)
+    • categorical         (string / object)
+    • datetime            (parseable date/time strings)
+  The target column COL_134 is also type-checked (must be numeric for
+  regression).
+
+  Stage 2 – PRE-PROCESSING
+  ─────────────────────────
+    • Numeric columns   → missing values filled with column median.
+    • Categorical cols  → one-hot encoding (pandas get_dummies).
+    • Datetime cols     → decomposed into year, month, day-of-year integers.
+  Result: a fully numeric feature matrix X and target vector y.
+
+  Stage 3a – LASSO FEATURE SELECTION  (linear relationships)
+  ────────────────────────────────────────────────────────────
+  Lasso (L1-regularised linear regression) shrinks irrelevant coefficients
+  to exactly zero.  Features with non-zero coefficients are kept.
+
+    Objective:  min  ||y - Xβ||² + α·||β||₁
+                 β
+
+  Parameter: --lasso-alpha (default 0.01).  Increase to select fewer features;
+  decrease to include more.
+
+  Stage 3b – RANDOM FOREST FEATURE IMPORTANCE  (non-linear relationships)
+  ─────────────────────────────────────────────────────────────────────────
+  A Random Forest Regressor trains an ensemble of decision trees; the
+  resulting feature_importances_ (mean decrease in impurity) rank every
+  column.  Features above the mean importance threshold are kept.
+
+  Parameter: --rf-trees (default 200).  More trees → more stable ranking.
+
+  Stage 3c – UNION SELECTION
+  ───────────────────────────
+  The final feature set is the union of Lasso-selected and RF-selected
+  features.  This keeps both linear and non-linear predictors.
+
+  Stage 4 – FINAL MODEL: LINEAR REGRESSION
+  ─────────────────────────────────────────
+  A Linear Regression model is trained on the selected features (with
+  StandardScaler normalisation).  Performance is measured on a held-out
+  test split (default 20 %):
+
+    • R²   – coefficient of determination  (1.0 = perfect fit)
+    • RMSE – root-mean-squared error
+    • MAE  – mean absolute error
+
+  Stage 5 – OUTPUT
+  ─────────────────
+  • Console report: ranked relevant columns, model metrics.
+  • feature_importance.png: horizontal bar chart of RF importances.
+
+
+--------------------------------------------------------------------------------
+3. FILE INVENTORY
+--------------------------------------------------------------------------------
+  elevator_data.csv          – synthetic demo dataset (500 rows, 12 columns)
+  generate_dataset.py        – script that created elevator_data.csv
+  col134_feature_selection.py – main ML pipeline (run this)
+  solution.txt               – this file
+  venv/                      – Python virtual environment
+  feature_importance.png     – output chart (created after first run)
+
+
+--------------------------------------------------------------------------------
+4. PREREQUISITES
+--------------------------------------------------------------------------------
+  • Python 3.9 or newer  (check:  python3 --version)
+  • The virtual environment is already created at  ./venv/
+
+
+--------------------------------------------------------------------------------
+5. STEP-BY-STEP EXECUTION
+--------------------------------------------------------------------------------
+
+  STEP A – Open a terminal and navigate to the project folder
+  ────────────────────────────────────────────────────────────
+    cd /home/laptop/Downloads/2026-05-15-13-00
+
+
+  STEP B – Activate the virtual environment
+  ──────────────────────────────────────────
+    Linux / macOS:
+        source venv/bin/activate
+
+    Windows (cmd.exe):
+        venv\Scripts\activate.bat
+
+    Windows (PowerShell):
+        venv\Scripts\Activate.ps1
+
+    You should see "(venv)" prepended to your shell prompt.
+
+
+  STEP C – (First run only) Confirm packages are installed
+  ─────────────────────────────────────────────────────────
+    pip install numpy pandas scikit-learn matplotlib seaborn
+
+    Or, if a requirements.txt is provided:
+        pip install -r requirements.txt
+
+
+  STEP D – Generate the demo dataset  (skip if you have your own CSV)
+  ────────────────────────────────────────────────────────────────────
+    python generate_dataset.py
+
+    This creates  elevator_data.csv  with 500 rows and 12 columns,
+    including COL_134 as a linear combination of 6 "signal" columns
+    plus Gaussian noise.
+
+
+  STEP E – Run the feature-selection pipeline on the demo dataset
+  ───────────────────────────────────────────────────────────────
+    python col134_feature_selection.py
+
+    Default settings are used (COL_134 as target, Lasso α=0.01, 200 trees).
+
+
+  STEP F – Run against YOUR OWN dataset
+  ──────────────────────────────────────
+    python col134_feature_selection.py --csv your_file.csv --target COL_134
+
+    Replace  your_file.csv  with the actual path to your data file.
+    Change  COL_134  if your target column has a different name.
+
+
+  STEP G – Tuning parameters
+  ────────────────────────────
+    python col134_feature_selection.py \
+        --csv your_file.csv     \   # path to CSV
+        --target COL_134        \   # target column name
+        --test-size 0.25        \   # 25 % held out for testing
+        --lasso-alpha 0.05      \   # stronger L1 regularisation → fewer feats
+        --rf-trees 500              # more trees → more stable importances
+
+
+  STEP H – Deactivate the virtual environment when done
+  ──────────────────────────────────────────────────────
+    deactivate
+
+
+--------------------------------------------------------------------------------
+6. READING THE OUTPUT
+--------------------------------------------------------------------------------
+  The script prints five numbered sections:
+
+  [STEP 1]  Column type summary table showing detected data type for every
+            column and marking COL_134 as the target.
+
+  [STEP 2]  Pre-processing log: how many numeric / categorical / datetime
+            columns were found and how they were transformed.
+
+  [STEP 3a] Lasso selection: columns with non-zero L1 coefficients.
+
+  [STEP 3b] Random Forest selection: all columns ranked by importance;
+            selected ones are marked with ✓.
+
+  [STEP 3c] Combined selection: every relevant column and which method
+            identified it (Lasso, RF, or both).
+
+  [STEP 4]  Final model: list of features used + R², RMSE, MAE on test set.
+
+  [FINAL SUMMARY]
+            One-page summary including model type, metrics, and the list of
+            columns confirmed as RELEVANT to COL_134.
+
+  feature_importance.png
+            Bar chart – green bars are selected features, grey are below the
+            importance threshold, red dashed line = mean threshold.
+
+
+--------------------------------------------------------------------------------
+7. INTERPRETING RESULTS
+--------------------------------------------------------------------------------
+  R² close to 1.0
+      The selected features explain most of the variance in COL_134.
+      The linear model is a good approximation.
+
+  R² well below 0.7
+      Either important non-linear interactions exist (consider switching the
+      final model to RandomForestRegressor) or more features are needed.
+
+  A column appears in "RELEVANT" list
+      It has a statistically meaningful relationship with COL_134 according
+      to at least one of the two selection methods.
+
+  A column is ABSENT from the "RELEVANT" list
+      It contributes little predictive power for COL_134 under the chosen
+      thresholds.  It may still have a physical relationship that is too
+      noisy or non-monotonic to detect with these methods.
+
+
+--------------------------------------------------------------------------------
+8. EXTENDING THE PIPELINE
+--------------------------------------------------------------------------------
+  Switch to a non-linear final model
+      Replace LinearRegression() in col134_feature_selection.py with:
+          from sklearn.ensemble import RandomForestRegressor
+          RandomForestRegressor(n_estimators=200, random_state=42)
+      or
+          from sklearn.ensemble import GradientBoostingRegressor
+          GradientBoostingRegressor(n_estimators=200, random_state=42)
+
+  Cross-validation instead of a single split
+      Replace train_test_split with sklearn.model_selection.cross_val_score
+      for more robust performance estimates on small datasets.
+
+  Hyperparameter tuning
+      Use sklearn.model_selection.GridSearchCV or RandomizedSearchCV to
+      optimise Lasso alpha and/or Random Forest depth automatically.
+
+  Saving the model
+      import joblib
+      joblib.dump(model, "col134_model.pkl")
+      # reload later:
+      model = joblib.load("col134_model.pkl")
+
+
+--------------------------------------------------------------------------------
+9. DEPENDENCIES
+--------------------------------------------------------------------------------
+  Package        Version tested    Purpose
+  ─────────────  ───────────────   ─────────────────────────────────────────
+  numpy          ≥1.24             Numerical arrays, linear algebra
+  pandas         ≥2.0              CSV I/O, DataFrame pre-processing
+  scikit-learn   ≥1.3              Lasso, RandomForest, LinearRegression,
+                                   metrics, preprocessing, pipelines
+  matplotlib     ≥3.7              Feature importance bar chart
+  seaborn        ≥0.12             (optional) enhanced plot styling
+
+
+--------------------------------------------------------------------------------
+10. FEATURE IMPORTANCE AND THE CONCEPT OF THRESHOLD
+--------------------------------------------------------------------------------
+
+  What is Feature Importance?
+  ─────────────────────────────
+  Feature importance is a numerical score assigned to every input column that
+  quantifies how much that column contributes to predicting the target variable
+  (here: COL_134).  A higher score means the column carries more information
+  about the target; a score near zero means the column is essentially noise
+  from the model's perspective.
+
+  In a Random Forest, feature importance is measured by the "Mean Decrease in
+  Impurity" (MDI), also called Gini importance:
+
+    1. Every time a feature is used as a split point inside a decision tree,
+       the algorithm measures how much the split reduced the variance (for
+       regression) or impurity (for classification) in the two child nodes.
+    2. This reduction is accumulated across every tree and every node where
+       the feature appears.
+    3. The values are averaged over all trees and then normalised so that all
+       feature importances sum to exactly 1.0.
+
+  Mathematically, for feature j:
+
+    importance(j) = (1/T) · Σₜ Σ_{nodes n in tree t where feature j is used}
+                      [ wₙ · ΔImpurity(n) ]
+
+  where T is the number of trees, wₙ is the fraction of samples reaching
+  node n, and ΔImpurity(n) is the impurity reduction at that split.
+
+  What is the Threshold?
+  ──────────────────────
+  Once every feature has a numeric importance score, a threshold is needed to
+  separate "relevant" from "irrelevant" columns.  The script uses the
+  arithmetic mean of all importance scores as the threshold:
+
+                   threshold = (1/p) · Σⱼ importance(j)
+
+  where p is the total number of features.
+
+  Because all importances sum to 1.0, the mean threshold equals 1/p.
+  A feature is kept if:
+
+                   importance(j)  ≥  threshold  =  1/p
+
+  This has an intuitive interpretation: a feature must "pull more than its
+  equal share" of predictive weight to be considered relevant.  On the demo
+  dataset with 9 numeric features the threshold is 1/9 ≈ 0.111.
+
+  Why the mean threshold?
+    • It is scale-free and automatically adapts to any number of features.
+    • It is robust: it does not require manual tuning for each new dataset.
+    • It naturally filters out the long tail of low-importance noise columns.
+
+  Alternative threshold strategies (not used by default, but easy to swap):
+    • Percentile cutoff (e.g. keep top 30 % of features).
+    • Fixed absolute value (e.g. keep features with importance > 0.05).
+    • SelectFromModel in scikit-learn, which uses "1.25 × mean" as default.
+    • Permutation importance (slower but avoids MDI bias on high-cardinality
+      features) via sklearn.inspection.permutation_importance.
+
+  How to read the threshold line in feature_importance.png
+  ─────────────────────────────────────────────────────────
+  The red dashed vertical line in the bar chart marks the mean threshold.
+  Green bars extend to the right of the line → those columns are selected.
+  Grey bars fall to the left (or touch the line) → those columns are excluded.
+
+  See also: Reference [1] in Section 16 for a scikit-learn worked example
+  comparing MDI importances and permutation importances visually.
+
+
+--------------------------------------------------------------------------------
+11. HOW RANDOM FOREST FEATURE SELECTION WORKS (IN DEPTH)
+--------------------------------------------------------------------------------
+
+  Overview
+  ────────
+  A Random Forest is an ensemble of decision trees, each trained on a
+  different random bootstrap sample of the training data.  At every split
+  inside each tree, the algorithm also randomly selects a subset of features
+  to consider (controlled by max_features, default = 1/3 of all features for
+  regression).  This double randomisation produces trees that are diverse,
+  which reduces variance and makes the ensemble more robust than any single
+  tree.
+
+  Step-by-step: from raw data to feature importance score
+  ─────────────────────────────────────────────────────────
+  1. BOOTSTRAP SAMPLING
+     For each of the T trees, draw N samples with replacement from the
+     training set.  About 37 % of rows are left out ("out-of-bag" samples)
+     and can be used for internal validation.
+
+  2. RECURSIVE BINARY SPLITTING
+     At each node, randomly pick m candidate features (m ≪ total features).
+     For each candidate, try every possible split point and compute the
+     variance reduction:
+
+       ΔVar = Var(parent) – [ (n_left/n) · Var(left) + (n_right/n) · Var(right) ]
+
+     Choose the feature and split point that maximise ΔVar.
+
+  3. GROW UNTIL STOPPING CRITERION
+     Keep splitting until nodes are pure, contain fewer than min_samples_split
+     samples, or the maximum depth is reached.
+
+  4. ACCUMULATE IMPORTANCE
+     After all T trees are grown, sum the weighted variance reductions for
+     every feature across every node and every tree, then normalise to sum = 1.
+
+  5. RANK AND THRESHOLD
+     Sort features by accumulated importance (descending).  Apply the mean
+     threshold to separate relevant from irrelevant features.
+
+  Why Random Forest handles unknown data well
+  ────────────────────────────────────────────
+  • NO ASSUMPTION ABOUT DISTRIBUTION: trees split on rank order, so they
+    work equally well whether a column is normally distributed, skewed,
+    bimodal, or anything else.
+
+  • CAPTURES NON-LINEAR AND INTERACTION EFFECTS: a tree can express
+    "COL_067 matters, but only when COL_089 > 60" naturally through nested
+    splits; linear models cannot do this without manual feature engineering.
+
+  • HANDLES MIXED SCALES: because each split is evaluated independently,
+    large-magnitude columns (e.g. load weight in kg) do not dominate small-
+    magnitude columns (e.g. door-time in seconds).  No normalisation is
+    needed before fitting the forest.
+
+  • ROBUST TO IRRELEVANT FEATURES: the random feature subsetting at each
+    split means that a truly irrelevant column will rarely be chosen as the
+    best split, and its accumulated importance converges toward zero.
+
+  • HANDLES MODERATE MISSING DATA: trees can route samples with missing
+    values to the majority branch; combined with the median imputation in
+    pre-processing, the pipeline is tolerant of sparse real-world datasets.
+
+  Known limitations of Random Forest feature importance
+  ──────────────────────────────────────────────────────
+  • HIGH-CARDINALITY BIAS: features with many unique values (e.g. a raw ID
+    column) can receive artificially high MDI scores because they offer more
+    split points.  Mitigate by dropping ID columns or using permutation
+    importance instead.
+
+  • CORRELATED FEATURES: when two columns carry nearly the same information,
+    the forest splits importance between them somewhat arbitrarily.  Both may
+    appear important or only one, depending on random seed.  Use correlation
+    analysis as a complementary check.
+
+  • COMPUTATIONALLY HEAVIER than Lasso for very large numbers of features
+    (> 10 000 columns); in such cases consider a pre-screening step with
+    Lasso first, then RF on the surviving subset.
+
+
+--------------------------------------------------------------------------------
+12. CONCLUSION – WHY RANDOM FOREST IS THE BEST CHOICE FOR THIS TASK
+--------------------------------------------------------------------------------
+
+  The core challenge is that the dataset has an unknown number of columns with
+  unknown data types and unknown relationships to COL_134.  This rules out
+  many approaches that make strong prior assumptions.
+
+  Why Random Forest wins here
+  ────────────────────────────
+  1. TYPE-AGNOSTIC after pre-processing
+     Once categorical and datetime columns are numerically encoded, RF treats
+     every column identically.  It does not require the user to specify which
+     columns are ordinal, nominal, or continuous.
+
+  2. ASSUMPTION-FREE
+     Unlike linear models (Lasso, Ridge, OLS) or parametric models (Gaussian
+     Process, logistic regression), RF makes no assumption about the
+     distribution of the features or the functional form of the relationship
+     with COL_134.  This is critical when the relationship is unknown.
+
+  3. DETECTS NON-LINEAR AND INTERACTION EFFECTS
+     An elevator component's wear or vibration may depend on a combination of
+     speed × load, or temperature only when trip-count is high.  RF captures
+     these interactions natively through nested decision-tree splits.
+
+  4. BUILT-IN RANKING
+     The output is a continuous importance score for every feature, not just
+     a binary "selected / not selected".  This ranking is directly
+     interpretable and visualisable.
+
+  5. RESISTANT TO IRRELEVANT COLUMNS
+     With many noise columns present (COL_120, COL_125, COL_130 in the demo),
+     RF consistently assigns them near-zero importance, keeping the final
+     model clean without any manual filtering.
+
+  6. WORKS WELL WITH SMALL-TO-MEDIUM DATASETS
+     Effective from ~100 rows upward.  Lasso also works well here, but RF
+     is more robust when the number of features approaches or exceeds the
+     number of rows.
+
+  Summary table – method comparison for the COL_134 use-case
+  ───────────────────────────────────────────────────────────
+  Method               Linear?  Non-linear?  Mixed types  Unknown count  Score
+  ───────────────────  ───────  ───────────  ───────────  ─────────────  ─────
+  Random Forest        Yes      Yes          Yes*         Yes            ★★★★★
+  Lasso (L1)           Yes      No           Yes*         Yes            ★★★★
+  Ridge (L2)           Yes      No           Yes*         Yes            ★★★
+  Gradient Boosting    Yes      Yes          Yes*         Yes            ★★★★★
+  Mutual Information   Yes      Yes          Yes*         Yes            ★★★★
+  PCA / PLS            Yes      Partial      Yes*         Yes            ★★★
+  Neural Network       Yes      Yes          Yes*         Yes            ★★★
+
+  * After the same numeric encoding pre-processing step.
+
+  Random Forest and Gradient Boosting tie at the top for this task.  RF is
+  preferred as the default because:
+    • It is faster to train than Gradient Boosting (trees are independent).
+    • It requires fewer hyperparameters to tune.
+    • Its feature importances are equally informative.
+
+  Alternative algorithms that also work for this scenario
+  ────────────────────────────────────────────────────────
+
+  a) GRADIENT BOOSTING REGRESSOR (XGBoost / LightGBM / sklearn GBM)
+     Builds trees sequentially, each correcting residuals of the previous.
+     Equally powerful for non-linear feature selection; often achieves
+     slightly better predictive accuracy but is slower to train and requires
+     more tuning (learning rate, depth, subsample).
+     Use when: R² with RF is below 0.85 and you need to squeeze out accuracy.
+     pip install xgboost lightgbm
+
+  b) MUTUAL INFORMATION (sklearn.feature_selection.mutual_info_regression)
+     Estimates statistical dependence between each feature and the target
+     without assuming linearity.  Scores every feature independently (no
+     interaction detection).  Very fast, no hyperparameters.
+     Use when: you need a quick, model-free relevance ranking before fitting
+     any model, or when the dataset has > 10 000 columns.
+
+  c) PERMUTATION IMPORTANCE (sklearn.inspection.permutation_importance)
+     Measures how much model performance (R²) drops when a feature's values
+     are randomly shuffled.  Avoids the MDI high-cardinality bias of RF.
+     Use when: some columns have many unique values (IDs, timestamps) and you
+     suspect MDI scores are inflated for those columns.
+
+  d) LASSO / ELASTIC NET (already included in the pipeline as Stage 3a)
+     Best complementary choice to RF.  Strong at identifying linearly
+     redundant features and handling highly correlated feature pairs cleanly.
+     Elastic Net (alpha * L1 + (1-alpha) * L2) is a robust extension when
+     feature groups are correlated.
+
+  e) RECURSIVE FEATURE ELIMINATION (RFE, sklearn.feature_selection.RFE)
+     Repeatedly trains a model, removes the least important feature, and
+     repeats.  More thorough than a single-pass importance ranking but can be
+     slow for large feature sets.  Pairs well with any estimator that exposes
+     coef_ or feature_importances_.
+
+  f) SHAP VALUES (shap library)
+     Provides a game-theoretically rigorous importance score for every
+     feature × sample pair, based on Shapley values from cooperative game
+     theory.  The most interpretable and accurate method available.
+     Use when: interpretability and per-sample explanations are required
+     (e.g. regulatory, safety, or audit contexts for elevator certification).
+     pip install shap
+
+
+--------------------------------------------------------------------------------
+13. NOTE – USING NON-CSV DATASET FORMATS
+--------------------------------------------------------------------------------
+
+  The script currently expects a CSV file.  If your dataset is in a different
+  format, you must convert it to a Pandas DataFrame before the pipeline can
+  process it.  The conversion replaces only the pd.read_csv() call inside the
+  load_and_inspect() function; all downstream stages remain unchanged.
+
+  Supported format conversions
+  ─────────────────────────────
+
+  a) EXCEL  (.xls, .xlsx, .xlsm)
+     ──────────────────────────────
+     pip install openpyxl xlrd
+
+     # In Python / or save to CSV first:
+     df = pd.read_excel("data.xlsx", sheet_name="Sheet1")
+     df.to_csv("elevator_data.csv", index=False)
+
+     # Or pass directly (no CSV needed):
+     python col134_feature_selection.py  --csv data.xlsx
+     # (requires modifying load_and_inspect to use pd.read_excel)
+
+  b) JSON  (.json)
+     ───────────────
+     # Flat records format:
+     df = pd.read_json("data.json", orient="records")
+     df.to_csv("elevator_data.csv", index=False)
+
+     # Nested JSON requires normalisation first:
+     import json
+     with open("data.json") as f:
+         raw = json.load(f)
+     df = pd.json_normalize(raw)   # flattens nested keys to dot-notation cols
+     df.to_csv("elevator_data.csv", index=False)
+
+  c) PARQUET  (.parquet)
+     ─────────────────────
+     pip install pyarrow   # or fastparquet
+
+     df = pd.read_parquet("data.parquet")
+     df.to_csv("elevator_data.csv", index=False)
+
+  d) SQL DATABASE  (SQLite, PostgreSQL, MySQL, MSSQL, Oracle)
+     ──────────────────────────────────────────────────────────
+     pip install sqlalchemy psycopg2   # adjust driver for your DB
+
+     from sqlalchemy import create_engine
+     engine = create_engine("postgresql://user:pass@host/dbname")
+     df = pd.read_sql("SELECT * FROM elevator_measurements", engine)
+     df.to_csv("elevator_data.csv", index=False)
+
+  e) HDF5 / HDF  (.h5, .hdf5)
+     ──────────────────────────
+     pip install tables
+
+     df = pd.read_hdf("data.h5", key="measurements")
+     df.to_csv("elevator_data.csv", index=False)
+
+  f) XML  (.xml)
+     ────────────
+     # Python 3.8+ built-in parser:
+     df = pd.read_xml("data.xml")
+     df.to_csv("elevator_data.csv", index=False)
+
+     # For deeply nested XML, use xml.etree.ElementTree + manual parsing.
+
+  g) MATLAB  (.mat)
+     ───────────────
+     pip install scipy
+
+     from scipy.io import loadmat
+     import numpy as np
+     mat = loadmat("data.mat")
+     # Extract the variable that holds your measurement matrix:
+     arr = mat["measurements"]   # adjust key name
+     df = pd.DataFrame(arr)
+     df.columns = [f"COL_{i:03d}" for i in range(df.shape[1])]
+     df.to_csv("elevator_data.csv", index=False)
+
+  h) FEATHER  (.feather) / ORC  (.orc)
+     ────────────────────────────────────
+     pip install pyarrow
+
+     df = pd.read_feather("data.feather")   # or pd.read_orc("data.orc")
+     df.to_csv("elevator_data.csv", index=False)
+
+  i) TSV / SPACE-SEPARATED TEXT  (.tsv, .txt, .dat)
+     ──────────────────────────────────────────────────
+     df = pd.read_csv("data.tsv", sep="\t")      # tab-separated
+     df = pd.read_csv("data.dat", sep=r"\s+")    # any whitespace
+     df.to_csv("elevator_data.csv", index=False)
+
+  j) FIXED-WIDTH FORMAT  (.fwf)
+     ────────────────────────────
+     df = pd.read_fwf("data.fwf", widths=[10, 8, 12, ...])
+     df.to_csv("elevator_data.csv", index=False)
+
+  k) NUMPY BINARY  (.npy, .npz)
+     ────────────────────────────
+     import numpy as np
+     arr = np.load("data.npy")           # shape (N, p)
+     df = pd.DataFrame(arr)
+     df.columns = [f"COL_{i:03d}" for i in range(df.shape[1])]
+     df.to_csv("elevator_data.csv", index=False)
+
+  General conversion checklist
+  ──────────────────────────────
+  After loading from any format, verify the following before running the
+  pipeline:
+
+  1. Column names exist (not just 0, 1, 2 …):
+       print(df.columns.tolist())
+     If missing, assign meaningful names or at least "COL_000", "COL_001", …
+
+  2. COL_134 (or your target) is present:
+       assert "COL_134" in df.columns, "Target column not found"
+
+  3. No duplicate column names:
+       assert df.columns.duplicated().sum() == 0
+
+  4. Row count is reasonable (at least 50–100 rows for regression):
+       print(f"Rows: {len(df)}")
+
+  5. Save as CSV and re-run as normal:
+       df.to_csv("elevator_data.csv", index=False)
+       python col134_feature_selection.py --csv elevator_data.csv
+
+
+--------------------------------------------------------------------------------
+14. IMPROVING FEATURE SELECTION WITH XGBOOST + SelectFromModel
+--------------------------------------------------------------------------------
+
+  Overview
+  ────────
+  The default pipeline uses Random Forest importances with a mean threshold.
+  A more targeted improvement is to replace (or complement) that step with
+  XGBoost combined with scikit-learn's SelectFromModel class.  XGBoost's
+  gradient-boosted trees often achieve higher predictive accuracy than a
+  standard Random Forest, and its richer importance metrics (Gain, Weight,
+  Cover) give you finer control over which features to keep.
+
+  The process has three parts:
+    1. Train an initial XGBoost model to generate importance scores.
+    2. Inspect and choose an importance metric (Gain recommended).
+    3. Apply SelectFromModel with a threshold to reduce the feature set.
+
+
+  STEP 1 – Train the Initial XGBoost Model
+  ──────────────────────────────────────────
+  Fit an XGBRegressor to the full training set.  The model internally builds
+  decision trees and records, for every feature, how often and how usefully
+  it was chosen as a split point.
+
+    from xgboost import XGBRegressor
+
+    xgb_model = XGBRegressor(
+        n_estimators   = 300,     # number of boosting rounds
+        learning_rate  = 0.05,    # step size (shrinkage)
+        max_depth      = 6,       # max depth of each tree
+        subsample      = 0.8,     # fraction of rows per tree
+        colsample_bytree = 0.8,   # fraction of columns per tree
+        random_state   = 42,
+        n_jobs         = -1,
+    )
+    xgb_model.fit(X_train, y_train)
+
+  After fitting, importance scores for every feature are stored internally
+  and can be retrieved with get_booster().get_score().
+
+
+  STEP 2 – Retrieve and Visualise Importance Scores
+  ────────────────────────────────────────────────────
+  XGBoost provides three distinct importance metrics.  Understanding which
+  one to use is critical for reliable feature selection:
+
+  ┌─────────────┬──────────────────────────────────────────────────────────────┐
+  │ Metric      │ Definition                                                   │
+  ├─────────────┼──────────────────────────────────────────────────────────────┤
+  │ Weight      │ The number of times a feature appears as a split across all  │
+  │             │ trees.  Simple count; biased toward high-cardinality columns. │
+  ├─────────────┼──────────────────────────────────────────────────────────────┤
+  │ Gain        │ The average reduction in the loss function (e.g. MSE for     │
+  │             │ regression) each time a feature is used to split a node.     │
+  │             │ RECOMMENDED: directly reflects predictive contribution.      │
+  ├─────────────┼──────────────────────────────────────────────────────────────┤
+  │ Cover       │ The average number of training samples affected by splits    │
+  │             │ that use this feature.  Useful when sample coverage matters. │
+  └─────────────┴──────────────────────────────────────────────────────────────┘
+
+  Retrieve scores programmatically:
+
+    import pandas as pd
+
+    scores = xgb_model.get_booster().get_score(importance_type="gain")
+    importance_series = pd.Series(scores).sort_values(ascending=False)
+    print(importance_series)
+
+  Visualise with XGBoost's built-in plot:
+
+    from xgboost import plot_importance
+    import matplotlib.pyplot as plt
+
+    fig, axes = plt.subplots(1, 3, figsize=(18, 6))
+    for ax, metric in zip(axes, ["weight", "gain", "cover"]):
+        plot_importance(xgb_model, importance_type=metric,
+                        ax=ax, title=f"Importance – {metric}", max_num_features=20)
+    plt.tight_layout()
+    plt.savefig("xgb_importance.png", dpi=150)
+
+  The three charts allow you to cross-check: a feature that ranks highly on
+  all three metrics is a very robust candidate for inclusion.
+
+
+  STEP 3 – Apply Threshold-Based Selection with SelectFromModel
+  ──────────────────────────────────────────────────────────────
+  scikit-learn's SelectFromModel wraps any fitted estimator that exposes
+  feature_importances_ (which XGBRegressor does) and retains only the
+  features whose importance meets a threshold.
+
+    from sklearn.feature_selection import SelectFromModel
+
+    selector = SelectFromModel(
+        estimator  = xgb_model,
+        threshold  = "median",    # keep features above the median importance
+        prefit     = True,        # model is already fitted – skip re-training
+    )
+
+    X_train_selected = selector.transform(X_train)
+    X_test_selected  = selector.transform(X_test)
+
+    selected_mask  = selector.get_support()
+    selected_cols  = X_train.columns[selected_mask].tolist()
+    print(f"Selected {len(selected_cols)} / {X_train.shape[1]} features:")
+    for col in selected_cols:
+        print(f"  • {col}")
+
+  Threshold options for SelectFromModel
+  ──────────────────────────────────────
+    "mean"      Keep features with importance ≥ mean (same as RF default).
+    "median"    Keep features with importance ≥ median (stricter; ~50 % kept).
+    "1.25*mean" Keep only features well above average (built-in sklearn default
+                when threshold parameter is omitted).
+    0.05        Keep features with a raw importance score above 0.05.
+                Use this when you know the scale of the gain scores.
+
+  Choosing "median" is usually a good starting point: it guarantees that
+  exactly half the features are discarded, which is a meaningful reduction
+  on datasets with many noise columns.
+
+
+  STEP 4 – Train the Final Model on Selected Features
+  ─────────────────────────────────────────────────────
+  With the reduced feature set, train the final predictive model.  You can
+  use the XGBoost model itself (for best accuracy) or revert to Linear
+  Regression (for interpretability):
+
+    from sklearn.linear_model import LinearRegression
+    from sklearn.metrics import r2_score, mean_squared_error
+    import numpy as np
+
+    final_model = LinearRegression()
+    final_model.fit(X_train_selected, y_train)
+
+    y_pred = final_model.predict(X_test_selected)
+    print(f"R²   = {r2_score(y_test, y_pred):.4f}")
+    print(f"RMSE = {np.sqrt(mean_squared_error(y_test, y_pred)):.4f}")
+
+
+  Complete self-contained example
+  ─────────────────────────────────
+  The following snippet integrates all four steps.  It assumes X_train,
+  X_test, y_train, y_test are already prepared by the pre-processing stage
+  in col134_feature_selection.py (Stage 2).
+
+    # ── Install if needed ──────────────────────────────────────────────────
+    # pip install xgboost
+
+    import numpy as np
+    import pandas as pd
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    from xgboost import XGBRegressor, plot_importance
+    from sklearn.feature_selection import SelectFromModel
+    from sklearn.linear_model import LinearRegression
+    from sklearn.metrics import r2_score, mean_squared_error, mean_absolute_error
+
+    # 1. Train initial XGBoost model ─────────────────────────────────────────
+    xgb_model = XGBRegressor(
+        n_estimators=300, learning_rate=0.05, max_depth=6,
+        subsample=0.8, colsample_bytree=0.8, random_state=42, n_jobs=-1,
+    )
+    xgb_model.fit(X_train, y_train)
+
+    # 2. Visualise importance (gain metric) ──────────────────────────────────
+    fig, axes = plt.subplots(1, 3, figsize=(18, 6))
+    for ax, metric in zip(axes, ["weight", "gain", "cover"]):
+        plot_importance(xgb_model, importance_type=metric, ax=ax,
+                        title=f"XGBoost Importance – {metric}",
+                        max_num_features=20)
+    plt.tight_layout()
+    plt.savefig("xgb_importance.png", dpi=150)
+    print("XGBoost importance chart saved → xgb_importance.png")
+
+    # 3. Select features using median threshold ───────────────────────────────
+    selector = SelectFromModel(xgb_model, threshold="median", prefit=True)
+    X_tr_sel = selector.transform(X_train)
+    X_te_sel = selector.transform(X_test)
+
+    selected_cols = X_train.columns[selector.get_support()].tolist()
+    print(f"\nSelected {len(selected_cols)} / {X_train.shape[1]} features:")
+    for c in selected_cols:
+        print(f"  • {c}")
+
+    # 4. Train final model on selected features ───────────────────────────────
+    final = LinearRegression()
+    final.fit(X_tr_sel, y_train)
+    y_pred = final.predict(X_te_sel)
+
+    print(f"\nFinal model performance (XGBoost selection + Linear Regression):")
+    print(f"  R²   = {r2_score(y_test, y_pred):.4f}")
+    print(f"  RMSE = {np.sqrt(mean_squared_error(y_test, y_pred)):.4f}")
+    print(f"  MAE  = {mean_absolute_error(y_test, y_pred):.4f}")
+
+
+  Comparison: Random Forest vs. XGBoost for feature selection
+  ─────────────────────────────────────────────────────────────
+  ┌──────────────────────────┬────────────────────────┬────────────────────────┐
+  │ Aspect                   │ Random Forest (default) │ XGBoost + SelectFrom   │
+  ├──────────────────────────┼────────────────────────┼────────────────────────┤
+  │ Training speed           │ Fast (parallel trees)  │ Moderate (sequential)  │
+  │ Importance metric        │ MDI (one type)         │ Gain / Weight / Cover  │
+  │ Threshold flexibility    │ Mean (auto)            │ Mean / Median / custom │
+  │ Handles non-linearity    │ Yes                    │ Yes (often better)     │
+  │ Handles correlated feats │ Splits importance      │ More robust via gain   │
+  │ Hyperparameters to tune  │ Few                    │ More (lr, depth, …)    │
+  │ sklearn integration      │ Native                 │ Via XGBRegressor API   │
+  │ Best for                 │ Quick baseline         │ Higher accuracy target │
+  └──────────────────────────┴────────────────────────┴────────────────────────┘
+
+  When to prefer XGBoost selection
+    • The Random Forest model gives R² < 0.85 and you need better accuracy.
+    • The dataset has many correlated features (gain metric handles them better
+      than MDI).
+    • You want to compare multiple importance metrics (weight/gain/cover) to
+      cross-validate which features consistently rank high across all three.
+    • The dataset is large (> 100 000 rows): XGBoost is generally faster than
+      RF in that regime due to histogram-based tree building.
+
+  See also: Reference [1] in Section 16 (scikit-learn feature importance
+  example) for a side-by-side comparison of MDI and permutation importances
+  that complements the XGBoost Gain / Weight / Cover metrics described here.
+
+
+  Quick-Start Workflow – XGBoost Feature Selection from a Raw CSV File
+  ──────────────────────────────────────────────────────────────────────
+  The following minimal workflow applies to ANY CSV dataset where the target
+  column name and the relevant feature columns are both unknown in advance.
+  It covers data loading, initial model training, importance-based selection,
+  and a final retrained XGBoost regressor.
+
+  Prerequisites
+    pip install xgboost scikit-learn pandas
+
+  Important notes before running
+  ───────────────────────────────
+  a) Threshold Selection
+     SelectFromModel accepts:
+       "mean"    – keep features with importance ≥ mean (broader selection).
+       "median"  – keep features with importance ≥ median (~50 % retained).
+       0.05      – keep features with a raw importance score above 0.05
+                   (use when you know the scale of your importance values).
+     Start with "mean" for an initial broad selection; switch to "median"
+     to reduce the feature set further if the initial result is still noisy.
+
+  b) Feature Visualisation
+     Call xgboost.plot_importance() after fitting to visually inspect which
+     columns are the strongest predictors before applying any threshold:
+
+       from xgboost import plot_importance
+       plot_importance(model, importance_type="gain", max_num_features=20)
+
+     This chart helps you choose a sensible manual threshold if "mean" or
+     "median" over- or under-selects features for your dataset.
+
+  c) Categorical Data
+     If the dataset contains string or object columns that have been
+     label-encoded as integers, or if you pass pandas Categorical dtype
+     columns directly, use:
+
+       model = XGBRegressor(enable_categorical=True)
+
+     Alternatively, convert string columns to pandas Categorical first:
+
+       for col in X.select_dtypes(include="object").columns:
+           X[col] = X[col].astype("category")
+
+     Without this, XGBoost will raise an error on non-numeric columns.
+
+  Complete minimal workflow (copy-paste ready):
+
+    import pandas as pd
+    from xgboost import XGBRegressor
+    from sklearn.model_selection import train_test_split
+    from sklearn.feature_selection import SelectFromModel
+    from sklearn.metrics import r2_score, mean_squared_error
+    import numpy as np
+
+    # ── 1. Prepare the dataset ───────────────────────────────────────────────
+    df = pd.read_csv("your_dataset.csv")
+
+    # Separate features (X) from the unknown target variable (y)
+    TARGET = "COL_134"              # change to your target column name
+    X = df.drop(TARGET, axis=1)
+    y = df[TARGET]
+
+    # Optional: convert object columns to category for XGBoost
+    for col in X.select_dtypes(include="object").columns:
+        X[col] = X[col].astype("category")
+
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.2, random_state=42
+    )
+
+    # ── 2. Initial training to generate feature importance scores ────────────
+    model = XGBRegressor(
+        n_estimators=100,
+        learning_rate=0.1,
+        enable_categorical=True,    # remove if all columns are already numeric
+        random_state=42,
+    )
+    model.fit(X_train, y_train)
+
+    # Access importance scores directly (uses "weight" metric by default)
+    importances = model.feature_importances_
+    print("Feature importances (weight):")
+    for name, score in sorted(zip(X_train.columns, importances),
+                               key=lambda x: x[1], reverse=True):
+        print(f"  {name:<30}  {score:.6f}")
+
+    # ── 3. Feature selection via SelectFromModel ─────────────────────────────
+    # "mean" threshold: keep features with importance ≥ mean importance
+    selection = SelectFromModel(model, threshold="mean", prefit=True)
+
+    X_train_selected = selection.transform(X_train)
+    X_test_selected  = selection.transform(X_test)
+
+    selected_cols = X_train.columns[selection.get_support()].tolist()
+    print(f"\nSelected {len(selected_cols)} / {len(X_train.columns)} features:")
+    for col in selected_cols:
+        print(f"  • {col}")
+
+    # ── 4. Retrain XGBoost on the selected feature subset ───────────────────
+    # Retraining on the reduced set improves efficiency and reduces overfitting
+    final_model = XGBRegressor(
+        n_estimators=200,
+        learning_rate=0.05,
+        enable_categorical=True,
+        random_state=42,
+    )
+    final_model.fit(X_train_selected, y_train)
+
+    predictions = final_model.predict(X_test_selected)
+
+    print(f"\nFinal model performance:")
+    print(f"  R²   = {r2_score(y_test, predictions):.4f}")
+    print(f"  RMSE = {np.sqrt(mean_squared_error(y_test, predictions)):.4f}")
+
+  Key point: retraining XGBoost (Step 4) on the selected subset rather than
+  reusing the initial model (Step 2) matters because the initial model was
+  fitted with all features present.  The retrained model distributes its
+  capacity only among the relevant columns, which typically gives better
+  generalisation and lower RMSE on unseen data.
+
+
+--------------------------------------------------------------------------------
+15. EVALUATING AND COMPARING FEATURE SELECTION ALGORITHMS
+--------------------------------------------------------------------------------
+
+  Overview
+  ────────
+  No single feature selection method is universally best.  The right choice
+  depends on the dataset size, the number of features, the presence of
+  non-linear relationships, and the computational budget.  This section
+  provides a systematic evaluation framework to compare methods objectively.
+
+  Evaluation Strategy
+  ────────────────────
+  For a fair comparison, every method should be evaluated under the same
+  conditions:
+    • Same train / test split (or same cross-validation folds).
+    • Same final regression model trained on the selected features.
+    • Same performance metrics (R², RMSE, MAE).
+
+  The comparison then answers: "Which selection method leaves the final
+  model with the best predictive performance on held-out data?"
+
+  Step-by-step evaluation script
+  ────────────────────────────────
+  The script below evaluates five different feature selection methods for
+  COL_134 and prints a ranked comparison table.  It requires only the
+  packages already installed in the venv (plus xgboost).
+
+    import numpy as np
+    import pandas as pd
+    from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
+    from sklearn.linear_model import Lasso, LinearRegression
+    from sklearn.feature_selection import (
+        SelectFromModel, mutual_info_regression, SelectKBest
+    )
+    from sklearn.model_selection import cross_val_score, KFold
+    from sklearn.pipeline import Pipeline
+    from sklearn.preprocessing import StandardScaler
+    from sklearn.metrics import r2_score, mean_squared_error
+    from xgboost import XGBRegressor
+
+    # ── Assume X_train, X_test, y_train, y_test are already prepared ─────────
+
+    kf = KFold(n_splits=5, shuffle=True, random_state=42)
+    results = []
+
+    # Helper: evaluate a fixed feature subset with Linear Regression via CV
+    def evaluate_selection(name, X_sel_train, X_sel_test, n_selected):
+        lr = LinearRegression()
+        cv_r2 = cross_val_score(lr, X_sel_train, y_train,
+                                cv=kf, scoring="r2").mean()
+        lr.fit(X_sel_train, y_train)
+        y_pred = lr.predict(X_sel_test)
+        test_r2   = r2_score(y_test, y_pred)
+        test_rmse = np.sqrt(mean_squared_error(y_test, y_pred))
+        results.append({
+            "Method":      name,
+            "N_selected":  n_selected,
+            "CV_R2_mean":  round(cv_r2,   4),
+            "Test_R2":     round(test_r2,  4),
+            "Test_RMSE":   round(test_rmse, 4),
+        })
+
+    # ── Method 1: Lasso (L1) ─────────────────────────────────────────────────
+    lasso = Pipeline([("sc", StandardScaler()), ("la", Lasso(alpha=0.01))])
+    lasso.fit(X_train, y_train)
+    mask_lasso = lasso.named_steps["la"].coef_ != 0
+    evaluate_selection("Lasso (L1)",
+                       X_train.values[:, mask_lasso],
+                       X_test.values[:, mask_lasso],
+                       mask_lasso.sum())
+
+    # ── Method 2: Random Forest importance (mean threshold) ───────────────────
+    rf = RandomForestRegressor(n_estimators=200, random_state=42, n_jobs=-1)
+    rf.fit(X_train, y_train)
+    sel_rf = SelectFromModel(rf, threshold="mean", prefit=True)
+    evaluate_selection("Random Forest (mean)",
+                       sel_rf.transform(X_train),
+                       sel_rf.transform(X_test),
+                       sel_rf.transform(X_train).shape[1])
+
+    # ── Method 3: Gradient Boosting importance (mean threshold) ───────────────
+    gb = GradientBoostingRegressor(n_estimators=200, random_state=42)
+    gb.fit(X_train, y_train)
+    sel_gb = SelectFromModel(gb, threshold="mean", prefit=True)
+    evaluate_selection("Gradient Boosting (mean)",
+                       sel_gb.transform(X_train),
+                       sel_gb.transform(X_test),
+                       sel_gb.transform(X_train).shape[1])
+
+    # ── Method 4: XGBoost importance (mean threshold) ────────────────────────
+    xgb = XGBRegressor(n_estimators=200, learning_rate=0.05,
+                       random_state=42, n_jobs=-1)
+    xgb.fit(X_train, y_train)
+    sel_xgb = SelectFromModel(xgb, threshold="mean", prefit=True)
+    evaluate_selection("XGBoost (mean)",
+                       sel_xgb.transform(X_train),
+                       sel_xgb.transform(X_test),
+                       sel_xgb.transform(X_train).shape[1])
+
+    # ── Method 5: Mutual Information (top-k features) ────────────────────────
+    k = max(1, X_train.shape[1] // 2)   # keep top 50 % of features
+    sel_mi = SelectKBest(mutual_info_regression, k=k)
+    sel_mi.fit(X_train, y_train)
+    evaluate_selection("Mutual Information (top 50%)",
+                       sel_mi.transform(X_train),
+                       sel_mi.transform(X_test),
+                       k)
+
+    # ── Print ranked comparison table ────────────────────────────────────────
+    df_results = pd.DataFrame(results).sort_values("Test_R2", ascending=False)
+    print("\n" + "="*70)
+    print("FEATURE SELECTION METHOD COMPARISON")
+    print("="*70)
+    print(df_results.to_string(index=False))
+    print("="*70)
+    print("\nBest method by Test R²:", df_results.iloc[0]["Method"])
+
+  Reading the comparison table
+  ─────────────────────────────
+  CV_R2_mean   Average R² across 5 cross-validation folds on training data.
+               High here + low Test_R2 → overfitting.
+               Both high → the selection method generalises well.
+
+  Test_R2      R² on the held-out test set.  Primary ranking criterion.
+               ≥ 0.90  : excellent; the selected features capture the
+                          variance of COL_134 very well.
+               0.75–0.90: good; consider tuning thresholds or adding
+                          interaction features.
+               < 0.75  : poor; try a non-linear final model (XGBoost)
+                          or permutation-importance-based selection.
+
+  Test_RMSE    Root-mean-squared error in the same units as COL_134.
+               Lower is better; use this to compare methods when R²
+               differences are small (< 0.01).
+
+  N_selected   Number of features retained after thresholding.
+               Prefer the method that achieves the highest R² with the
+               fewest features (parsimony principle).
+
+  Decision rules: which method to trust
+  ───────────────────────────────────────
+  ┌───────────────────────────────┬──────────────────────────────────────────┐
+  │ Situation                     │ Recommended method                       │
+  ├───────────────────────────────┼──────────────────────────────────────────┤
+  │ Unknown relationships, mixed  │ XGBoost or Random Forest (start here)    │
+  │ types, unknown column count   │                                          │
+  ├───────────────────────────────┼──────────────────────────────────────────┤
+  │ Mostly linear dataset         │ Lasso – fewest selected features,        │
+  │                               │ highly interpretable coefficients        │
+  ├───────────────────────────────┼──────────────────────────────────────────┤
+  │ Very many columns (> 500)     │ Mutual Information pre-screening, then   │
+  │                               │ XGBoost on surviving subset              │
+  ├───────────────────────────────┼──────────────────────────────────────────┤
+  │ Need per-prediction explainab │ SHAP values on the final XGBoost model   │
+  │ ility (audit / safety)        │ (pip install shap)                       │
+  ├───────────────────────────────┼──────────────────────────────────────────┤
+  │ Small dataset (< 200 rows)    │ Lasso + cross-validation; RF/XGBoost     │
+  │                               │ may overfit with many trees              │
+  ├───────────────────────────────┼──────────────────────────────────────────┤
+  │ Two methods agree on a feat   │ High confidence: feature is genuinely    │
+  │                               │ relevant; include regardless of R²       │
+  └───────────────────────────────┴──────────────────────────────────────────┘
+
+  Cross-validation: why it matters for evaluation
+  ─────────────────────────────────────────────────
+  A single train/test split can give misleading results if the split happens
+  to separate easy vs. hard samples unevenly.  K-fold cross-validation (k=5
+  or k=10) repeats the experiment on different subsets of the data, so the
+  reported CV_R2_mean is a more honest estimate of how well the selection
+  method generalises to new data from the same distribution.
+
+  Rule of thumb: if CV_R2_mean and Test_R2 agree within ±0.05, the selected
+  feature set is stable and the model is not overfitting.  A gap larger than
+  0.10 suggests the threshold is too loose (too many noise features kept) or
+  the dataset is too small for the chosen model complexity.
+
+  Summary recommendation for the COL_134 elevator use-case
+  ──────────────────────────────────────────────────────────
+  1. Run the evaluation script above on your actual dataset.
+  2. If XGBoost (mean) achieves the highest Test_R2, adopt the XGBoost
+     quick-start workflow from Section 14 as the production pipeline.
+  3. If Lasso ties or beats XGBoost at a lower N_selected, prefer Lasso for
+     its interpretability (direct coefficient = direct physical meaning).
+  4. If no method achieves R² > 0.75, inspect the raw data for:
+       – Sensor outliers (clip or log-transform the offending column).
+       – Missing interaction terms (try polynomial features on top-ranked cols).
+       – Insufficient data (collect more samples or use k-fold CV throughout).
+
+
+--------------------------------------------------------------------------------
+16. REFERENCES
+--------------------------------------------------------------------------------
+
+  [1] Feature importances with a forest of trees
+      scikit-learn official example – demonstrates how to compute and
+      visualise MDI-based feature importances and permutation importances
+      using a Random Forest on a real dataset, including comparison of
+      the two importance methods side-by-side.
+
+      URL: https://scikit-learn.org/stable/auto_examples/ensemble/plot_forest_importances.html
+
+      Relevant to: Section 10 (threshold concept), Section 11 (how RF
+      feature selection works), Section 14 (XGBoost comparison table),
+      Section 15 (algorithm evaluation framework), and the
+      feature_importance.png output produced by col134_feature_selection.py.
+
+
+================================================================================
+END OF SOLUTION.TXT
+================================================================================
