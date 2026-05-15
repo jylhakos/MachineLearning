@@ -26,12 +26,12 @@ Machine learning algorithms aim to learn and improve their accuracy as they proc
 
 ### Feature Selection in Machine Learning
 
-Feature selection is the process of identifying and selecting the most relevant input variables (features) from a dataset to use in building a machine learning model. It is a critical pre-processing step that directly affects model accuracy, training speed, and interpretability.
+Feature selection is the process of identifying and selecting the most relevant input variables (features) from a dataset to use in building a machine learning model. It is an essential pre-processing step that directly affects model accuracy, training speed, and interpretability.
 
 **Why Feature Selection Matters:**
 - Reduces model complexity and training time by removing irrelevant or redundant variables
 - Prevents overfitting by limiting noise introduced by low-value features
-- Improves model interpretability, making it easier to understand which variables drive predictions
+- Improves the model’s understandability, making it easier to identify which variables drive predictions.
 - Enhances generalization to unseen data by focusing on the most informative signals
 
 **Common Feature Selection Techniques:**
@@ -43,7 +43,7 @@ Feature selection and regression are tightly coupled: once the most informative 
 
 ### Regression in Machine Learning
 
-Regression is a supervised learning technique used to predict continuous numerical values. Regression models estimate the relationship between selected input features and a continuous target variable, forming the predictive backbone of many real-world ML applications.
+Regression is a supervised learning technique used to predict continuous numerical values. Regression models estimate the relationship between selected input features and a continuous target variable, providing the predictive basis for many real-world ML applications.
 
 **How Regression Uses Selected Features:**
 1. Feature selection identifies which variables carry predictive signal
@@ -62,7 +62,7 @@ Together, feature selection and regression form a complete pipeline: identify wh
 
 ### Search Engines and Chat Agents in Machine Learning
 
-Search engines and AI chat agents accelerate machine learning (ML) problem-solving by automating data curation, feature engineering, and model selection. They enable real-time information retrieval to guide model training, allowing agents to solve Kaggle competitions, perform complex data analysis, and build predictive models, significantly reducing manual workflows.
+Search engines and AI chat agents accelerate machine learning (ML) problem-solving by automating data processing, feature engineering, and model selection. They enable real-time information retrieval to guide model training, allowing agents to solve Kaggle competitions, perform complex data analysis, and build predictive models, significantly reducing manual workflows.
 
 **Search Engines in Machine Learning**
 
@@ -74,10 +74,12 @@ Search engines primarily use machine learning for query classification, semantic
 
 **Chat Agents in Machine Learning**
 
-Chat agents use tools (like web search) to act autonomously, performing multi-step research and code execution, rather than just delivering text-based answers. Their role in ML includes:
+Chat agents use tools (like web search) to act autonomously, performing multi-step research and code execution, rather than just delivering text-based answers.
+
+Their role in ML includes:
 
 - **Data Discovery and Understanding:** Chat agents (like ChatGPT/Gemini) help analyze new data by suggesting relevant techniques, generating exploratory data analysis (EDA) code, and assisting with sensemaking to determine if a dataset is fit for purpose
-- **Automating ML Workflows (Agentic AI):** Agents like MLE-bench use LLMs (e.g., Gemini 2.5) to autonomously curate data, perform feature engineering, and train models, effectively handling tasks that consume 80% of data scientists' time
+- **Automating ML Workflows (Agentic AI):** Agents like MLE-bench use LLMs (e.g., Gemini 2.5) to autonomously process data, perform feature engineering, and train models, effectively handling tasks that consume 80% of data scientists' time
 - **Optimizing Model Selection:** By leveraging search capabilities, agents can identify state-of-the-art models and algorithms, comparing metrics and attributes across vast datasets to select the best approach for a given task
 - **Handling Unstructured Data:** Agents can process disparate data sources (PDFs, CSVs, HTML) to build datasets for training, using tools like Amazon Kendra to uncover patterns and insights
 
