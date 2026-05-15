@@ -25,7 +25,7 @@ The Fish.csv dataset is sourced from [Hugging Face](https://huggingface.co/datas
 - **Species**: Species name of fish (categorical variable with 7 species)
 - **Weight**: Weight of fish in grams (target variable)
 - **Length1**: Vertical length in cm
-- **Length2**: Diagonal length in cm  
+- **Length2**: Diagonal length in cm
 - **Length3**: Cross length in cm
 - **Height**: Height in cm
 - **Width**: Width in cm
@@ -321,7 +321,7 @@ Determine the most frequent class among the K nearest neighbors. This class beco
 
 For Regression:
 
-Calculate the average (or weighted average) of the target values of the K nearest neighbors. This average becomes the predicted value for the new data point. 
+Calculate the average (or weighted average) of the target values of the K nearest neighbors. This average becomes the predicted value for the new data point.
 
 ## Insights
 
@@ -346,89 +346,93 @@ Calculate the average (or weighted average) of the target values of the K neares
 
 ### Overview
 
-In the context of machine learning, locally deployed Ollama serves as a secure, private interface for open-source Large Language Models (LLMs) to perform semantic data analysis on "unknown" datasets, particularly during the early stages of a machine learning pipeline. For tasks like Feature Selection and Regression, Ollama allows these models to act as "semantic reviewers" that interpret feature names and data patterns without transmitting sensitive information to the cloud [1, 3].
+Locally deployed Ollama running open-source LLMs (e.g., Llama 3, Mistral) can be integrated into the Fish.csv regression pipeline as a **semantic reasoning layer** alongside scikit-learn and XGBoost. With the dataset fully known — 159 fish samples, 7 species (Bream, Roach, Whitefish, Parkki, Perch, Pike, Smelt), physical measurements (Length1, Length2, Length3, Height, Width), and the regression target `Weight` (0–1650 g) — the LLM's role shifts from blind dataset discovery to domain-informed analysis: explaining *why* certain features predict weight, reasoning about feature correlation among the three length measurements, and producing human-readable interpretations of model predictions [1, 3].
 
-Locally deployed Ollama running open-source LLMs (e.g., Llama 3, Mistral) is utilized to securely process "unknown" (unstructured/raw) datasets by acting as an intelligent intermediary to derive meaningful features (Feature Selection) and generate context-aware predictions (Regression) without sending sensitive data to external APIs.
+Because Ollama runs entirely on the local machine, no fish measurement data is transmitted to external APIs. This also eliminates per-token costs and allows unrestricted experimentation with large prompt payloads (e.g., sending all 159 rows to the model context) [1, 3].
 
-### Processing Unknown Datasets
+### How LLMs Assist with the Fish Dataset
 
-Ollama ensures that "unknown" or sensitive raw data stays on the local machine, which is critical for datasets in healthcare or finance that cannot be uploaded to public APIs:
+The Fish.csv dataset is well-structured and the task is clearly defined: predict a fish's weight in grams from its species and five physical dimensions. In this known-dataset context, Ollama is useful for three distinct purposes:
 
-- **Dataset Exploration**: Query large local files (e.g., 10 GB+ CSV or Parquet) to automatically summarize schema and data distributions before manual feature engineering begins.
-- **Structured Feature Extraction**: For unstructured "unknown" data (such as text logs or financial news), Ollama helps extract structured features (e.g., sentiment scores or binary flags) into a tabular format suitable for regression training.
+1. **Feature reasoning**: Length1, Length2, and Length3 are three related but non-identical body length measurements. An LLM can articulate the biological relationships between them and Weight, helping decide which to retain or combine before statistical validation.
+2. **Guided feature engineering**: Ask the LLM to propose derived features (e.g., a volume proxy `Length3 × Height × Width`) that may improve regression accuracy beyond the raw columns.
+3. **Post-prediction explanation**: After training, feed SHAP importance scores back to the LLM to generate plain-language summaries of model behaviour, useful for communicating results to a non-technical audience.
 
 ### Feature Selection with Ollama
 
-When dealing with unknown datasets, Ollama helps interpret semantic meaning in columns or text fields that automated scripts might miss, mapping them to actionable numerical variables [2].
+#### Contextual Reasoning for the Fish Features
 
-#### Contextual Feature Selection
+The six input features (`Species`, `Length1`, `Length2`, `Length3`, `Height`, `Width`) have clear biological interpretations, and an LLM can reason about them with domain knowledge:
 
-- **Semantic Understanding**: LLMs analyze column names and metadata to identify features with high predictive power, even if data is poorly documented [2].
-- **Feature Generation**: LLMs suggest, create, or transform features (feature engineering) based on domain-specific knowledge inferred from data labels [2].
-- **Dimensionality Reduction**: LLMs act as an intelligent filter to remove irrelevant or redundant features based on reasoning rather than purely statistical correlation.
+- **Semantic Ranking**: Ask the LLM to rank features by expected predictive power for fish weight. Biologically, body volume (approximated by length × height × width) drives weight, so the model is expected to rank `Length3`, `Height`, and `Width` highly.
+- **Multicollinearity Reasoning**: Length1, Length2, and Length3 (vertical, diagonal, and cross lengths respectively) are strongly correlated. The LLM can explain *why* they overlap and suggest which single length measurement or linear combination is most informative.
+- **Species as a Categorical Moderator**: The LLM can explain that `Species` acts as an interaction term — a Bream and a Smelt of the same length have very different weights — and recommend encoding strategies (one-hot vs. label encoding vs. target encoding).
 
-#### Zero-Shot and Iterative Prompting
+#### Zero-Shot Feature Importance Scoring
 
-For an unknown dataset, the first step is to extract its "meta-context" so the LLM can understand feature relationships:
+Ask the LLM to score each feature before any model training:
 
-1. Ask the LLM to identify which column is the most logical "target" for regression based on field names and sample values.
-2. LLMs can perform feature selection by ranking variables based on their real-world semantic relevance to the target variable.
-3. **Zero-Shot Scoring**: Ask the LLM to assign an "importance score" (0–10) to each feature.
-4. **Filtering**: Remove columns that the LLM identifies as irrelevant or redundant (e.g., ID numbers or highly correlated features).
+1. Provide the feature list (`Species`, `Length1`, `Length2`, `Length3`, `Height`, `Width`) and the target (`Weight`).
+2. Request an importance score (0–10) with biological justification for each feature.
+3. Use the LLM's reasoning to form a prior expectation — then verify or challenge it with statistical methods below.
 
 #### Statistical Validation of Selected Features
 
-Validate the importance of selected features using statistical significance tests rather than just model scores:
+Validate LLM-suggested feature importance using the following methods on the Fish dataset:
 
 - **Filter Methods (Fastest)**:
-  - Use Pearson Correlation to identify and drop redundant features that are highly correlated with each other.
-  - Use Mutual Information (`mutual_info_regression`) to capture non-linear dependencies between features and the target variable.
+  - Pearson Correlation: Length1, Length2, and Length3 are expected to show high pairwise correlation (> 0.95). Identify and consider dropping the most redundant of the three.
+  - Mutual Information (`mutual_info_regression`): Captures non-linear dependencies; `Species` may score higher here than under linear correlation because its weight effect is species-specific.
 - **Wrapper Methods (Accurate)**:
-  - Use Recursive Feature Elimination (RFE) with a baseline model like Linear Regression or Random Forest to iteratively remove the least important features.
+  - Recursive Feature Elimination (RFE) with LinearRegression or RandomForest to iteratively remove the least important feature among the three length columns.
 - **Embedded Methods (Robust)**:
-  - Use Lasso (L1 Regularization). Lasso naturally performs feature selection by shrinking the coefficients of unimportant features to zero.
+  - Lasso (L1 Regularization) naturally zeros out redundant length coefficients, leaving only the most predictive length measurement alongside `Height`, `Width`, and `Species`.
 - **Statistical Significance**:
-  - F-Regression / Mutual Information: Use `f_regression` to check for linear relationships or `mutual_info_regression` for non-linear dependencies.
-  - P-values: Check the p-values of regression coefficients; features with high p-values (typically $> 0.05$) often add noise rather than signal.
+  - F-Regression / Mutual Information: Use `f_regression` for linear relationships or `mutual_info_regression` for non-linear dependencies.
+  - P-values: Features with $p > 0.05$ add noise rather than signal and should be candidates for removal.
 
 ### Regression Workflow with Ollama
 
-#### Model Selection and Hyperparameter Guidance
+#### Model Selection Guidance for Fish Weight Prediction
 
-- **Model Selection**: Based on the description of the "unknown" dataset (size, sparsity, data types), the LLM can recommend suitable regression algorithms (e.g., Random Forest vs. Linear Regression) [3].
-- **Hyperparameter Optimization**: LLMs can suggest reasonable ranges for hyperparameter tuning based on documentation processed in its local context.
+Given the Fish dataset characteristics (159 samples, 6 features, one categorical column, right-skewed weight distribution), an LLM can reason about algorithm trade-offs:
 
-#### Hybrid Reasoning: LLMs + Numerical Models
+- **Linear Regression**: Fast and interpretable, but assumes linearity. Fish weight scales roughly with body volume (a cubic relationship), so raw length features violate linearity assumptions. The LLM can suggest log-transforming `Weight` or adding polynomial features.
+- **Random Forest / Gradient Boosting**: Handles the non-linear weight-volume relationship and the categorical `Species` column naturally. The LLM can recommend starting hyperparameter ranges (`n_estimators=100–500`, `max_depth=4–8`) based on the dataset size.
+- **Ridge / Lasso Regression**: Appropriate when multicollinearity among the three length features inflates coefficient variance. The LLM can explain the regularization trade-off and recommend a cross-validated alpha search range.
 
-LLMs act as a "reasoning layer" that combines numerical predictions (e.g., from XGBoost) with textual data to refine regression outputs (e.g., predicting continuous variables like "days to event" or risk scores):
+#### LLM-Assisted Feature Engineering
 
-- **Data Transformation**: Use the Ollama API to convert raw tabular data into descriptive natural language prompts.
-- **Iterative Feedback Loop**: Use a framework like LLM-FE or LLM-Lasso, where the LLM proposes feature transformations and you provide feedback based on a local validation score (e.g., RMSE).
-- **Model-Generated Code**: Prompt models like Llama 3 to generate code for feature attribution methods, such as Lasso regression (embedded method) or Recursive Feature Elimination (RFE), to mathematically validate the initial semantic selection.
+Beyond selecting from existing columns, the LLM can propose new derived features specific to fish morphology:
+
+- **Volume Proxy**: `Length3 × Height × Width` approximates body volume and may capture the cubic weight-length relationship more directly than individual length columns.
+- **Aspect Ratios**: `Height / Width` or `Length1 / Length3` may differentiate species that share similar lengths but differ in body shape.
+- **Log Transforms**: `log(Weight)` linearises the allometric growth relationship (weight ∝ length³), improving the fit of linear models.
 
 #### Post-Prediction Interpretation
 
-After a regression model identifies important predictors (e.g., via SHAP values), Ollama can generate human-readable explanations in real-time, validating why the model selected specific features for a prediction, enhancing trust and auditability:
+After training, Ollama converts numeric SHAP importance scores into domain-grounded explanations for the Fish dataset:
 
-- **Residual Analysis**: Plot residuals vs. predicted values — they should be randomly distributed around zero without patterns (e.g., no "funnel" shape).
+- Feed SHAP values per feature to the LLM and ask for a biological interpretation of the feature rankings.
+- Ask the LLM to explain individual predictions: *"A Perch with Length3 = 28 cm, Height = 8.5 cm, Width = 4.2 cm was predicted to weigh 320 g. Why?"*
+- **Residual Analysis**: Plot residuals vs. predicted values — they should be randomly distributed around zero. If the LLM is given the residual plot description, it can suggest transformations (e.g., log-scale target) to correct systematic bias in the low-weight or high-weight range.
 
-### End-to-End Workflow
+### End-to-End Workflow for Fish Weight Prediction
 
-The complete workflow for using locally deployed Ollama with a numerical ML model is:
+$$\text{Fish.csv} \rightarrow \text{Ollama Feature Reasoning} \rightarrow \text{Statistical Validation} \rightarrow \text{Regression Model} \rightarrow \text{Ollama Interpretation}$$
 
-$$\text{Data Preprocessing} \rightarrow \text{Ollama for Feature Engineering} \rightarrow \text{Numerical Model (XGBoost / Random Forest)} \rightarrow \text{Ollama for Interpretation}$$
-
-| Stage | Tool / Method | Purpose |
+| Stage | Tool / Method | Fish Dataset Context |
 |---|---|---|
-| Data Preprocessing | pandas, scikit-learn | Cleaning, encoding, splitting |
-| Feature Engineering | Ollama (Llama 3 / Mistral) | Semantic feature ranking and generation |
-| Model Training | XGBoost, Random Forest | Numerical regression and prediction |
-| Interpretation | Ollama + SHAP | Explainability and auditability |
-| Validation | Cross-validation, RFE, LASSO | Confirm selected features on unseen data |
+| Data Loading & EDA | pandas, matplotlib | 159 samples, 7 species, Weight 0–1650 g |
+| LLM Feature Reasoning | Ollama (Llama 3 / Mistral) | Rank Length1/2/3, Height, Width, Species for predicting Weight |
+| Statistical Validation | f_regression, mutual_info, RFE, Lasso | Identify redundancy among correlated length features |
+| Model Training | LinearRegression, RandomForest, XGBoost | Predict Weight; compare RMSE and R² across models |
+| Interpretation | Ollama + SHAP | Explain why Species and body volume dominate predictions |
+| Validation | Cross-validation (k=5) | Confirm feature set generalises across all 7 species |
 
 ### Practical Implementation
 
-#### Step 1: Extract Meta-Context from an Unknown Dataset
+#### Step 1: LLM Feature Reasoning on the Known Dataset
 
 ```python
 import ollama
@@ -438,51 +442,47 @@ df = pd.read_csv('Dataset/Fish.csv')
 column_info = df.dtypes.to_string()
 sample_data = df.head(5).to_string()
 
+# Dataset is known: target is Weight, features are Species + 5 physical measurements.
+# Use the LLM to reason about feature relationships, not to discover the target.
 prompt = f"""
-You are a data scientist. Analyze the following dataset schema and sample rows.
-Identify the most likely regression target variable and rank the remaining features
-by their expected predictive importance for that target.
+You are a data scientist working on a fish weight prediction task.
+The dataset is Fish.csv with 159 samples and the following columns:
 
 Column types:
 {column_info}
 
-Sample data:
+Sample data (first 5 rows):
 {sample_data}
+
+The regression target is 'Weight' (grams). The features are:
+- Species: categorical (Bream, Roach, Whitefish, Parkki, Perch, Pike, Smelt)
+- Length1: vertical length (cm)
+- Length2: diagonal length (cm)
+- Length3: cross length (cm)
+- Height: body height (cm)
+- Width: body width (cm)
+
+Tasks:
+1. Rank the five numeric features by expected predictive importance for Weight and justify each ranking with biological reasoning.
+2. Explain the likely multicollinearity between Length1, Length2, and Length3, and recommend which to prioritise or combine.
+3. Describe how Species should be encoded for regression (label encoding vs. one-hot) and why.
+4. Suggest one or two derived features (e.g., a volume proxy) that may improve model accuracy.
 """
 
 response = ollama.chat(model='llama3', messages=[{'role': 'user', 'content': prompt}])
 print(response['message']['content'])
 ```
 
-#### Step 2: LLM-Guided Feature Selection (Zero-Shot Scoring)
-
-```python
-import ollama
-
-feature_names = df.columns.tolist()
-target = 'Weight'
-features = [f for f in feature_names if f != target]
-
-prompt = f"""
-Given these features for a fish weight prediction regression task:
-Features: {features}
-Target: {target}
-
-Assign an importance score (0-10) to each feature and explain your reasoning.
-Identify any features that are likely redundant or should be removed.
-"""
-
-response = ollama.chat(model='llama3', messages=[{'role': 'user', 'content': prompt}])
-print(response['message']['content'])
-```
-
-#### Step 3: Statistical Validation with scikit-learn
+#### Step 2: Statistical Validation of Feature Importance
 
 ```python
 from sklearn.feature_selection import f_regression, mutual_info_regression
 from sklearn.preprocessing import LabelEncoder
+import pandas as pd
 
-# Encode categorical variables
+df = pd.read_csv('Dataset/Fish.csv')
+
+# Encode Species for statistical methods
 df_encoded = df.copy()
 le = LabelEncoder()
 df_encoded['Species'] = le.fit_transform(df_encoded['Species'])
@@ -490,35 +490,68 @@ df_encoded['Species'] = le.fit_transform(df_encoded['Species'])
 X = df_encoded.drop('Weight', axis=1)
 y = df_encoded['Weight']
 
-# F-regression for linear relationships
+# F-regression: linear relationships with Weight
 f_scores, p_values = f_regression(X, y)
 print("F-scores:", dict(zip(X.columns, f_scores.round(2))))
 print("P-values:", dict(zip(X.columns, p_values.round(4))))
 
-# Mutual information for non-linear dependencies
+# Mutual Information: captures non-linear and species-specific effects
 mi_scores = mutual_info_regression(X, y, random_state=42)
 print("Mutual Information:", dict(zip(X.columns, mi_scores.round(4))))
 
-# Recursive Feature Elimination (RFE) — Wrapper Method
+# Pearson Correlation matrix — check multicollinearity among Length columns
+print("\nCorrelation with Weight:")
+print(df_encoded.corr()['Weight'].round(3))
+
+# RFE: identify which length measurement survives iterative elimination
 from sklearn.feature_selection import RFE
 from sklearn.linear_model import LinearRegression
 
 rfe = RFE(estimator=LinearRegression(), n_features_to_select=4)
 rfe.fit(X, y)
-selected = X.columns[rfe.support_].tolist()
-print("RFE-selected features:", selected)
+print("\nRFE-selected features:", X.columns[rfe.support_].tolist())
 
-# LASSO — Embedded Method
+# Lasso: zeros out the most redundant length column(s)
 from sklearn.linear_model import Lasso
 from sklearn.preprocessing import StandardScaler
 
 scaler = StandardScaler()
 X_scaled = scaler.fit_transform(X)
 
-lasso = Lasso(alpha=0.1)
+lasso = Lasso(alpha=1.0)
 lasso.fit(X_scaled, y)
-lasso_selected = X.columns[lasso.coef_ != 0].tolist()
-print("LASSO-selected features:", lasso_selected)
+coef_table = dict(zip(X.columns, lasso.coef_.round(3)))
+print("\nLasso coefficients:", coef_table)
+lasso_selected = [col for col, coef in coef_table.items() if coef != 0]
+print("Lasso-retained features:", lasso_selected)
+```
+
+#### Step 3: LLM-Guided Feature Engineering
+
+```python
+import ollama
+import pandas as pd
+
+df = pd.read_csv('Dataset/Fish.csv')
+
+# Add a volume proxy and ask the LLM whether it improves interpretability
+df['Volume_proxy'] = df['Length3'] * df['Height'] * df['Width']
+sample_engineered = df[['Species', 'Length3', 'Height', 'Width', 'Volume_proxy', 'Weight']].head(5).to_string()
+
+prompt = f"""
+A volume proxy feature (Length3 × Height × Width) was added to the Fish dataset.
+Sample rows after feature engineering:
+
+{sample_engineered}
+
+1. Does this derived feature capture the allometric growth relationship (weight ∝ volume) better than the individual measurements?
+2. Should the original Length3, Height, and Width columns be dropped after adding this proxy, or retained alongside it?
+3. Would a log transformation of 'Weight' or 'Volume_proxy' further linearise the regression relationship?
+Provide concise, actionable answers.
+"""
+
+response = ollama.chat(model='llama3', messages=[{'role': 'user', 'content': prompt}])
+print(response['message']['content'])
 ```
 
 #### Step 4: Post-Prediction Interpretation with Ollama
@@ -526,35 +559,42 @@ print("LASSO-selected features:", lasso_selected)
 ```python
 import ollama
 
-# After fitting your regression model and computing SHAP values
+# After fitting your regression model and computing SHAP values on the Fish dataset
 shap_summary = {
-    'Length1': 0.45,
-    'Length2': 0.38,
-    'Length3': 0.52,
-    'Height': 0.21,
-    'Width': 0.18,
-    'Species': 0.67
+    'Species':  0.67,   # High: Bream vs. Smelt of same length differ greatly in weight
+    'Length3':  0.52,   # Cross length — strongest individual length predictor
+    'Height':   0.41,   # Body depth contributes to volume
+    'Width':    0.35,   # Body width contributes to volume
+    'Length1':  0.18,   # Vertical length — partially redundant with Length3
+    'Length2':  0.14    # Diagonal length — most redundant of the three lengths
 }
 
 prompt = f"""
-A regression model predicted fish weight. The SHAP feature importances are:
+A Random Forest regression model was trained on the Fish.csv dataset to predict fish weight (grams).
+The dataset contains 159 fish samples across 7 species: Bream, Roach, Whitefish, Parkki, Perch, Pike, Smelt.
+Features: Species (categorical), Length1 (vertical), Length2 (diagonal), Length3 (cross), Height, Width.
+
+The SHAP mean absolute feature importances are:
 {shap_summary}
 
-Provide a human-readable explanation of why these features matter for predicting
-fish weight, and flag any that may be surprising or require validation.
+Tasks:
+1. Explain in plain language why Species and Length3 are the top two predictors for fish weight.
+2. Explain why Length1 and Length2 have lower importance than Length3 despite measuring the same fish.
+3. Are there any importances that are surprising from a biological standpoint? Flag them and suggest a validation step.
+4. Summarise the model behaviour in two sentences suitable for a non-technical audience.
 """
 
 response = ollama.chat(model='llama3', messages=[{'role': 'user', 'content': prompt}])
 print(response['message']['content'])
 ```
 
-### Key Advantages
+### Key Advantages for the Fish Dataset
 
-- **Data Privacy**: Ollama ensures all processing stays on the local machine. Sensitive or unknown datasets in healthcare or finance cannot be uploaded to public APIs [1, 3].
-- **No API Costs**: Removes dependence on OpenAI/Anthropic APIs, reducing operational costs and latency for large datasets [1, 3].
-- **Context-Aware Reasoning**: Combines the semantic understanding of LLMs with the mathematical precision of scikit-learn, XGBoost, and SHAP.
-- **Auditability**: Post-prediction explanations generated by the LLM enhance trust in model outputs, which is critical for regulated industries.
-- **Iterative Improvement**: Cross-validation ensures that LLM-selected and statistically validated features perform well on unseen data.
+- **Domain Reasoning**: Ollama provides biological context for feature relationships (e.g., allometric growth, species morphology) that purely statistical methods cannot supply [1, 3].
+- **Multicollinearity Guidance**: With three correlated length features, the LLM helps decide which to keep or combine before running Lasso or RFE — reducing trial-and-error in feature engineering.
+- **No API Costs**: All prompts run locally. Sending all 159 rows (or engineered features) to the model context incurs no per-token charges [1, 3].
+- **Explainability**: Post-prediction SHAP summaries translated by the LLM into plain English make model outputs accessible to domain experts (e.g., fisheries biologists) who are unfamiliar with SHAP values.
+- **Iterative Feedback**: After each training round, feed RMSE and feature importance back to the LLM to get targeted suggestions for the next iteration (e.g., try log(Weight) as the target, or add a volume proxy).
 
 ## References
 
