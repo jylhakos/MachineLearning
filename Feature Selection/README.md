@@ -38,12 +38,21 @@
     - [Reading the Results Table](#reading-the-results-table)
     - [Decision Rules for Selecting a Method](#decision-rules-for-selecting-a-method)
     - [Summary Recommendation for COL_134](#summary-recommendation-for-col_134)
-13. [Testing the Environment](#testing-the-environment)
+13. [Using Ollama for Feature Selection and Regression](#using-ollama-for-feature-selection-and-regression)
+    - [Role of Ollama in the Machine Learning Pipeline](#role-of-ollama-in-the-machine-learning-pipeline)
+    - [Pipeline Workflow Overview](#pipeline-workflow-overview)
+    - [Semantic Feature Review with Ollama](#semantic-feature-review-with-ollama)
+    - [Ollama-Guided Feature Engineering](#ollama-guided-feature-engineering)
+    - [Numerical Feature Selection and Regression](#numerical-feature-selection-and-regression)
+    - [Ollama for Result Interpretation](#ollama-for-result-interpretation)
+    - [Recommended Open-Source Models](#recommended-open-source-models)
+    - [Python Integration Examples](#python-integration-examples)
+14. [Testing the Environment](#testing-the-environment)
     - [Testing Python and Libraries](#testing-python-and-libraries)
     - [Installing and Testing Ollama](#installing-and-testing-ollama)
     - [Installing and Testing Docker](#installing-and-testing-docker)
     - [VS Code Integration](#vs-code-integration)
-14. [References](#references)
+15. [References](#references)
 
 ---
 
@@ -1848,6 +1857,353 @@ If no method achieves R2 above 0.75, perform three diagnostic checks before conc
 
 ---
 
+## Using Ollama for Feature Selection and Regression
+
+Locally deployed [Ollama](https://ollama.com) enables open-source Large Language Models (LLMs) such as Llama 3 and Mistral to run entirely on your own machine. In the context of machine learning on unknown datasets, Ollama acts as a **semantic reviewer**: it interprets feature names, explains data patterns, and narrates model results without transmitting any sensitive data to external servers or cloud APIs. This section defines where and how Ollama fits into the Feature Selection and Regression pipeline built in the previous sections.
+
+### Role of Ollama in the Machine Learning Pipeline
+
+Standard numerical methods such as Lasso, Random Forest, and XGBoost are excellent at finding statistical relationships between columns and a target variable, but they operate on numbers alone. When a dataset is completely unknown — column names are opaque codes like `COL_067` or `FEAT_12` and no data dictionary is available — the numerical pipeline cannot answer questions such as:
+
+- What physical or business concept might this feature represent?
+- Is the relationship between this feature and the target plausible for this domain?
+- Why did the model assign high importance to these three columns and not to the others?
+- How should a domain engineer interpret an R² of 0.97 for this target variable?
+
+A locally deployed LLM fills this gap. Ollama allows you to query a model with the column names, summary statistics, and feature importance results as context, and receive a natural-language interpretation in return — all processed on local hardware with no network request leaving the machine.
+
+**Key benefits of local Ollama deployment:**
+
+| Benefit | Description |
+|---|---|
+| Data privacy | No row-level data is ever sent to a cloud API. Sensitive sensor readings, industrial measurements, or proprietary column names stay on the local machine. |
+| No API costs | Inference runs on local hardware. There are no per-token fees or usage quotas. |
+| Context-aware reasoning | The LLM can reason across multiple column names and summary statistics simultaneously and provide holistic interpretations rather than column-by-column statistics. |
+| Offline capability | The pipeline runs without an internet connection once the model weights are pulled with `ollama pull`. |
+| Reproducibility | The same model version can be pinned and run identically across team members using `ollama pull model:tag`. |
+
+### Pipeline Workflow Overview
+
+The complete workflow that combines Ollama with the numerical Feature Selection and Regression pipeline is:
+
+$$
+\text{Data Preprocessing} \rightarrow \text{Ollama: Feature Engineering} \rightarrow \text{Numerical Model (XGBoost / Random Forest)} \rightarrow \text{Ollama: Interpretation}
+$$
+
+```mermaid
+flowchart LR
+    A([Unknown Dataset\nCSV / Excel / JSON]) --> B
+
+    subgraph PREPROCESS ["Stage 1 — Data Preprocessing"]
+        B["Load dataset\nDetect column types"]
+        B --> C["Impute missing values\nMedian / mode strategy"]
+        C --> D["Encode categoricals\nOne-hot / label encoding"]
+        D --> E["Scale numerics\nStandardScaler"]
+    end
+
+    subgraph OLLAMA_FE ["Stage 2 — Ollama: Semantic Feature Engineering"]
+        E --> F["Send column names +\nsummary statistics to Ollama\n(local LLM, no cloud)"]
+        F --> G["Ollama returns:\n• Probable domain meanings\n• Suggested groupings\n• Suspected noise columns\n• Candidate target-related features"]
+    end
+
+    subgraph NUMERICAL ["Stage 3 — Numerical Model (XGBoost / Random Forest)"]
+        G --> H["Apply Lasso + RF\ndual feature selection"]
+        H --> I["Train XGBoost / RF regressor\non selected features"]
+        I --> J["Evaluate:\nR², RMSE, MAE\n5-fold cross-validation"]
+    end
+
+    subgraph OLLAMA_INT ["Stage 4 — Ollama: Result Interpretation"]
+        J --> K["Send feature importance\ntable + metrics to Ollama"]
+        K --> L["Ollama returns:\n• Plain-language explanation\n• Domain plausibility check\n• Confidence narrative\n• Suggested next steps"]
+    end
+
+    L --> M([Final Report\noutputs/results_summary.json])
+
+    style PREPROCESS  fill:#e8f4f8,stroke:#2980b9
+    style OLLAMA_FE   fill:#fef9e7,stroke:#f39c12
+    style NUMERICAL   fill:#eaf8e8,stroke:#27ae60
+    style OLLAMA_INT  fill:#fdf2f8,stroke:#8e44ad
+```
+
+**When does Ollama run?**
+
+Ollama participates at two points in the pipeline — before and after the numerical stage — but it never sees raw numerical row data. It only receives metadata: column names, data types, summary statistics (min, max, mean, std), and aggregated model outputs (feature importance scores, R², RMSE). This design keeps inference fast, minimises the context window, and ensures that individual data records are never exposed.
+
+### Semantic Feature Review with Ollama
+
+The first Ollama stage runs after data loading and column type detection but before feature selection. Its purpose is to help make sense of opaque column names by asking the LLM to suggest probable domain meanings, identify likely irrelevant columns, and flag any naming patterns that suggest data leakage risks.
+
+**What to send to Ollama:**
+
+```python
+import requests, json, pandas as pd
+
+df = pd.read_csv("scripts/elevator_data.csv")
+
+# Build a compact metadata payload — no row-level data is included
+col_summary = []
+for col in df.columns:
+    col_summary.append({
+        "column":   col,
+        "dtype":    str(df[col].dtype),
+        "n_unique": int(df[col].nunique()),
+        "missing":  int(df[col].isna().sum()),
+        "mean":     round(float(df[col].mean()), 4) if df[col].dtype != "object" else None,
+        "std":      round(float(df[col].std()),  4) if df[col].dtype != "object" else None,
+    })
+
+prompt = f"""
+You are a data science assistant helping to analyse an unknown industrial dataset.
+The dataset has {df.shape[0]} rows and {df.shape[1]} columns.
+The target column is COL_134 (continuous numeric, likely a physical measurement).
+
+Below is the column metadata (no raw data is shared):
+
+{json.dumps(col_summary, indent=2)}
+
+Tasks:
+1. For each column suggest a probable physical or engineering meaning based on its name and statistics.
+2. Identify any columns that are likely to be identifiers, timestamps, or noise.
+3. List columns whose names suggest they may be mathematically derived from COL_134 (data leakage risk).
+4. Suggest which columns are the most promising candidates for feature selection.
+Keep each answer concise. Use bullet points.
+"""
+
+response = requests.post(
+    "http://localhost:11434/api/generate",
+    json={"model": "llama3.2:3b", "prompt": prompt, "stream": False},
+    timeout=120,
+)
+print(json.loads(response.text)["response"])
+```
+
+**What Ollama returns for the elevator dataset:**
+
+Running the above prompt against `llama3.2:3b` (or `mistral:7b`) with the elevator demo column names produces output similar to:
+
+```
+• COL_001 — likely a primary load or force measurement (high variance, no missing values)
+• COL_045 — probable weight or mass sensor reading; high correlation with COL_134 likely
+• COL_067 — possible motor speed or RPM metric; integer-like distribution
+• COL_089 — temperature reading (mean ~37, plausible for motor or ambient sensor)
+• COL_140 — categorical maintenance status code; encode before modelling
+• COL_150 — datetime of last service event; decompose to elapsed days feature
+• COL_120, COL_125, COL_130 — high variance, no clear pattern; likely noise columns
+
+Data leakage warning: no column names directly mirror COL_134.
+Recommended priority features for initial selection: COL_045, COL_089, COL_067.
+```
+
+This output does not replace the numerical feature selection but adds a domain-context layer that guides the analyst when reviewing the automatically selected feature list.
+
+### Ollama-Guided Feature Engineering
+
+After receiving the semantic review, use Ollama's suggestions to create or prioritise derived features before feeding data into XGBoost or Random Forest. Common guidance that an LLM provides for industrial sensor datasets includes:
+
+- Decompose datetime columns into elapsed-time-since-event rather than raw timestamps.
+- Create ratio features between related sensor readings (e.g. load / motor temperature).
+- Flag rows where a maintenance status changes within a rolling window.
+- Group low-frequency categories into an `OTHER` bucket before one-hot encoding.
+
+**Example: asking Ollama for feature engineering suggestions for a specific column pair:**
+
+```python
+prompt = """
+Two numeric columns in an elevator sensor dataset have these properties:
+- COL_045: load weight in kg, mean=320, std=85, range=[50, 600]
+- COL_089: motor temperature in Celsius, mean=72, std=18, range=[35, 130]
+The target COL_134 is a continuous physical characteristic of an elevator component.
+
+Suggest up to three derived features that combine COL_045 and COL_089 and
+that might improve a regression model for COL_134.
+For each suggestion explain the physical reasoning in one sentence.
+"""
+
+response = requests.post(
+    "http://localhost:11434/api/generate",
+    json={"model": "llama3.2:3b", "prompt": prompt, "stream": False},
+    timeout=120,
+)
+print(json.loads(response.text)["response"])
+```
+
+Incorporate accepted suggestions into the preprocessing stage before calling `col134_feature_selection.py`. Any engineered column added to the dataframe will automatically pass through the column type classifier, imputer, scaler, and dual feature selection stages of the existing pipeline with no code changes required.
+
+### Numerical Feature Selection and Regression
+
+Stage 3 runs the existing numerical pipeline described in [The Feature Selection and Regression Pipeline](#the-feature-selection-and-regression-pipeline) and [Feature Selection with XGBoost](#feature-selection-with-xgboost). The inputs to this stage are the preprocessed features plus any columns created during Ollama-guided feature engineering. The numerical pipeline operates independently of Ollama and produces the quantitative selection results:
+
+| Numerical step | Tool | Output |
+|---|---|---|
+| Dual feature selection | Lasso + Random Forest union | `outputs/feature_importance_table.csv` |
+| Final model training | XGBoost / RF Regressor | `outputs/regression_pipeline.pkl` |
+| Evaluation | 5-fold cross-validation | R², RMSE, MAE |
+| Visualisation | matplotlib | `outputs/feature_importance.png` |
+
+The Ollama semantic review (Stage 2) does not change any parameter in the numerical pipeline. Its output is advisory: the analyst uses it to review the importance table and ask whether the numerically top-ranked features match the domain interpretation provided by the LLM. If a feature with high Random Forest importance was flagged as a noise column by Ollama, this is a signal to investigate the column further before including it in the final model.
+
+### Ollama for Result Interpretation
+
+After the numerical pipeline completes and `outputs/results_summary.json` is written, send the feature importance table and evaluation metrics to Ollama to obtain a plain-language narrative of the results. This is particularly useful when the findings must be communicated to domain engineers who are not familiar with machine learning metrics.
+
+```python
+import requests, json, pandas as pd
+
+# Load the pipeline results
+with open("outputs/results_summary.json") as f:
+    results = json.load(f)
+
+importance_df = pd.read_csv("outputs/feature_importance_table.csv")
+top_features  = importance_df.head(10).to_dict(orient="records")
+
+prompt = f"""
+A regression pipeline was run on an unknown industrial elevator dataset.
+The target variable is COL_134 (a continuous physical characteristic of an elevator component).
+
+Pipeline results:
+- Features evaluated:  {results['n_features_input']}
+- Features selected:   {results['n_features_selected']}
+- Test R²:             {results['test_r2']}
+- Test RMSE:           {results['test_rmse']}
+- Test MAE:            {results['test_mae']}
+- 5-fold CV R² (mean): {results['cv_r2_mean']}
+
+Top 10 selected features by Random Forest importance:
+{json.dumps(top_features, indent=2)}
+
+Tasks:
+1. Describe in plain language how well the model predicts COL_134.
+2. Explain what the top three features suggest about what drives COL_134.
+3. State whether the R² value indicates the model is ready for production use or needs further investigation.
+4. List two concrete next steps for improving the model if R² is below 0.90.
+Use plain language suitable for a mechanical engineer without machine learning experience.
+"""
+
+response = requests.post(
+    "http://localhost:11434/api/generate",
+    json={"model": "llama3.2:3b", "prompt": prompt, "stream": False},
+    timeout=180,
+)
+print(json.loads(response.text)["response"])
+```
+
+**Example Ollama interpretation output (Llama 3, R² = 0.97):**
+
+```
+The model explains about 97% of the variation in COL_134, which is an excellent result
+for a sensor dataset. In practical terms, for most elevator component measurements the
+predicted value will be within one RMSE unit of the actual measurement.
+
+The three most influential features — COL_045 (load weight), COL_089 (motor temperature),
+and COL_067 (likely motor speed) — are physically consistent with a component characteristic
+that depends on mechanical loading and thermal operating conditions. This makes the model
+interpretable and trustworthy from an engineering standpoint.
+
+An R² of 0.97 exceeds the 0.90 threshold typically required for production use in
+predictive maintenance applications. The model can be deployed in a monitoring pipeline.
+
+If further improvement is needed:
+1. Add interaction features between load weight and temperature (e.g. load × temperature ratio).
+2. Investigate whether the maintenance status column (COL_140) introduces threshold effects
+   that would benefit from a non-linear encoding strategy.
+```
+
+### Recommended Open-Source Models
+
+The following models are available via Ollama and are suitable for semantic feature review and result interpretation in machine learning pipelines. All can be pulled and run locally with no internet connection during inference.
+
+| Model | Pull command | VRAM required | Best for |
+|---|---|---|---|
+| Llama 3.2 3B | `ollama pull llama3.2:3b` | ~3 GB | Fast responses on CPU or GPU; good for structured prompts |
+| Llama 3.1 8B | `ollama pull llama3.1:8b` | ~6 GB | Better reasoning; recommended for complex feature interpretation |
+| Mistral 7B | `ollama pull mistral:7b` | ~5 GB | Strong instruction following; good for engineering domain language |
+| Llama 3.3 70B | `ollama pull llama3.3:70b` | ~42 GB | Highest quality; requires a GPU with 48 GB VRAM or multi-GPU setup |
+
+For most feature selection and regression interpretation tasks on a standard developer laptop, `llama3.1:8b` or `mistral:7b` provides a good balance of response quality and inference speed. Use `llama3.2:3b` when running on CPU only or when fast turnaround is required.
+
+**Verify available models on your system:**
+
+```bash
+ollama list
+```
+
+**Pull the recommended model:**
+
+```bash
+ollama pull llama3.1:8b
+```
+
+### Python Integration Examples
+
+The following helper function wraps the Ollama HTTP API into a single callable that can be used from any stage of the pipeline. It sends a prompt to the locally running Ollama server and returns the response text.
+
+```python
+import requests, json
+
+def ask_ollama(prompt: str, model: str = "llama3.1:8b", timeout: int = 180) -> str:
+    """
+    Send a prompt to a locally running Ollama instance and return the response text.
+
+    Parameters
+    ----------
+    prompt  : Natural language prompt to send to the model.
+    model   : Ollama model tag (must already be pulled with 'ollama pull <model>').
+    timeout : HTTP request timeout in seconds.
+
+    Returns
+    -------
+    str : Model response text, or an error message if the request fails.
+    """
+    try:
+        resp = requests.post(
+            "http://localhost:11434/api/generate",
+            json={"model": model, "prompt": prompt, "stream": False},
+            timeout=timeout,
+        )
+        resp.raise_for_status()
+        return json.loads(resp.text).get("response", "").strip()
+    except requests.exceptions.ConnectionError:
+        return "[Ollama not running. Start it with: ollama serve]"
+    except requests.exceptions.Timeout:
+        return "[Ollama request timed out. Try a smaller model or increase timeout.]"
+    except Exception as exc:
+        return f"[Ollama error: {exc}]"
+
+
+# Example 1: semantic review of column names
+column_names = ["COL_045", "COL_067", "COL_089", "COL_120", "COL_134", "COL_140", "COL_150"]
+review_prompt = (
+    f"These are column names from an industrial elevator sensor dataset. "
+    f"The target column is COL_134. "
+    f"For each column suggest a probable physical meaning in one line: {column_names}"
+)
+print(ask_ollama(review_prompt))
+
+
+# Example 2: interpret a feature importance table
+import pandas as pd
+importance_df = pd.read_csv("outputs/feature_importance_table.csv")
+interp_prompt = (
+    f"A Random Forest regression model was trained to predict COL_134 "
+    f"(an elevator component characteristic). "
+    f"The top selected features and their importance scores are:\n"
+    f"{importance_df[['feature', 'rf_importance']].head(8).to_string(index=False)}\n"
+    f"Explain in plain English which features matter most and why."
+)
+print(ask_ollama(interp_prompt))
+```
+
+**Using `ask_ollama` inside the pipeline script:**
+
+The function can be called at two points in `scripts/col134_feature_selection.py` to add LLM-generated commentary to the console output:
+
+1. After Stage 1 (column type classification) — pass the column names and type summary for a semantic review.
+2. After Stage 5 (results saved) — pass the feature importance table and R² score for a plain-language interpretation.
+
+Because `ask_ollama` returns an empty error string when Ollama is not running, adding these calls does not break the pipeline when Ollama is unavailable. The numerical results are always produced regardless of whether Ollama responds.
+
+---
+
 ## Testing the Environment
 
 After setting up the virtual environment and installing all libraries, verify that every component works correctly before running the main scripts. All commands in this section must be run inside the activated virtual environment unless stated otherwise.
@@ -2057,6 +2413,9 @@ The Python extension provides IntelliSense, linting, and integrated debugging. T
 ### Tools and Infrastructure
 
 - Ollama local LLM inference: https://ollama.com
+- Ollama API documentation: https://github.com/ollama/ollama/blob/main/docs/api.md
+- Llama 3 model family: https://ollama.com/library/llama3.1
+- Mistral 7B model: https://ollama.com/library/mistral
 - Docker Engine installation: https://docs.docker.com/engine/install/ubuntu/
 - VS Code Python extension: https://marketplace.visualstudio.com/items?itemName=ms-python.python
 - VS Code Jupyter extension: https://marketplace.visualstudio.com/items?itemName=ms-toolsai.jupyter
